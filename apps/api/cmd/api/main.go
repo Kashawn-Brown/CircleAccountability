@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
@@ -38,6 +39,10 @@ func main() {
 
 	slog.Info("starting Circle Accountability API", "env", cfg.Env, "port", cfg.Port)
 
+	// Initialize the Clerk SDK once at startup. Sets the package-level secret
+	// key used by jwt.Verify to fetch the JWKS for this Clerk instance.
+	clerk.SetKey(cfg.ClerkSecretKey)
+
 	// Connect to PostgreSQL.
 	ctx := context.Background()
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
@@ -57,15 +62,17 @@ func main() {
 	r.Use(chiMiddleware.Recoverer)        // recover from panics, return 500
 	r.Use(chiMiddleware.RequestID)        // attach a unique ID to each request
 
-	// Routes.
+	// Public routes.
 	r.Get("/health", handler.Health(cfg.Env))
 
-	// Future route groups will be mounted here:
-	// r.Route("/api/v1", func(r chi.Router) {
-	//   r.Use(middleware.Auth)
-	//   r.Mount("/users", userRoutes())
-	//   r.Mount("/circles", circleRoutes())
-	// })
+	// Protected API routes. Everything mounted here runs behind the Auth
+	// middleware — requests without a valid Clerk session token get 401.
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(middleware.Auth)
+
+		// Temporary step-3 endpoint; replaced in step 4 by /users/me.
+		r.Get("/me/ping", handler.Ping())
+	})
 
 	// Start the HTTP server with graceful shutdown.
 	server := &http.Server{

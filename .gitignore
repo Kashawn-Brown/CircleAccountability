@@ -34,6 +34,8 @@ Thumbs.db
 # Go
 apps/api/bin/
 apps/api/*.exe
+apps/api/tmp/
+apps/api/build-errors.log
 
 # Logs
 *.log

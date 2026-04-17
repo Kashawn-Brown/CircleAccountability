@@ -164,3 +164,64 @@ bundle refuses to load.
 Operational note: `overrides` only applies on fresh resolution.
 Changing the field requires deleting `package-lock.json` and all
 `node_modules`, then `npm install`, for the new values to take effect.
+
+---
+
+## Per-app `.env.local` files, not a shared root file
+*Phase 1*
+
+Each app gets its own `.env.local` (and committed `.env.example`) in
+its workspace directory. The root `.env.local` holds only API vars.
+
+- `apps/api/` → reads root `.env.local` via `godotenv`.
+- `apps/web/` → Next.js auto-loads `apps/web/.env.local`.
+- `apps/mobile/` → Expo auto-loads `apps/mobile/.env.local`.
+
+Reason: Next.js and Expo each load env files from their own project
+directory, not the monorepo root. Keeping one shared file at the root
+would mean writing extra tooling to copy or symlink vars into each
+app, or using cross-workspace dotenv loaders — both buy complexity
+we don't need. Per-app files match how each tool expects to be used,
+and each workspace's `.env.example` documents exactly what that app
+needs.
+
+Trade-off: the Clerk publishable key appears in two `.env.example`
+files (web and mobile). Acceptable — they're conceptually different
+clients that happen to share a value, and the duplication is exactly
+two lines.
+
+---
+
+## Clerk Go SDK v2
+*Phase 1*
+
+Using `github.com/clerk/clerk-sdk-go/v2` (currently v2.5.1) for Clerk
+integration on the API. `clerk.SetKey(secret)` at startup configures
+the package globally; `jwt.Verify(ctx, &jwt.VerifyParams{Token: t})`
+handles JWKS fetching, caching, and signature verification.
+
+Reason: first-party SDK, maintained alongside the Clerk service, and
+the v2 line is the current supported major version (v1 is in
+maintenance-only mode). No reason to roll our own JWT verifier when
+the official SDK handles key rotation and JWKS caching transparently.
+
+---
+
+## Air for Go hot reload; plain `go run` kept as fallback
+*Phase 1*
+
+`make dev` uses [Air](https://github.com/air-verse/air) to watch
+`*.go` files and rebuild/restart on save. `make run` is kept as the
+dep-free one-shot (plain `go run ./cmd/api/...`) so a fresh clone
+without Air installed can still boot the API.
+
+Reason: hot reload is a real productivity win in a phase with lots
+of small server-side iterations. Air is the de-facto standard in
+Go dev tooling, small and well-maintained. Keeping `make run` as the
+fallback means Air stays a developer convenience — not a hard
+requirement for running the project.
+
+Air config (`.air.toml`) lives in `apps/api/` alongside the Makefile
+so Air runs with the same cwd as `make run`, which keeps
+`godotenv.Load("../../.env.local")` in `main.go` resolving correctly
+without code changes.

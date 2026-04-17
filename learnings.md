@@ -136,3 +136,77 @@ and re-running `npm install` may do nothing — the lockfile records the
 resolution from the previous install, and npm won't rewrite a lock
 that's still internally consistent. If an override doesn't seem to
 take effect, nuke the lockfile and all `node_modules`, then reinstall.
+
+---
+
+## `context.Context` for request-scoped values
+*apps/api/internal/middleware/auth.go*
+
+Every `*http.Request` in Go carries a `context.Context`. It's the
+idiomatic way to pass request-scoped data down the handler chain —
+deadlines, cancellation, and values like "who is the authenticated
+user." The Auth middleware uses it to hand the Clerk user ID off to
+handlers without exposing a global or a custom request type.
+
+Two rules that bit everyone learning this:
+
+1. **Context keys should be a private type**, not a raw string. Pattern:
+   `type ctxKey string; const clerkUserIDKey ctxKey = "clerkUserID"`.
+   If two packages both used the string `"userID"` as a context key
+   without this wrapping, they'd collide silently. Private types make
+   the key unforgeable outside the package.
+2. **`r.Context()` is read-only.** To attach a value you do
+   `ctx := context.WithValue(r.Context(), key, val)` and then pass
+   `next.ServeHTTP(w, r.WithContext(ctx))` — a *new* request carrying
+   the updated context. The original request's context can't be
+   mutated in place.
+
+Handlers downstream pull the value via a small helper
+(`ClerkUserIDFromContext(ctx) (string, bool)`) so they don't need to
+import the key type or worry about the assertion shape.
+
+---
+
+## JWT verification with Clerk — why it's stateless
+*apps/api/internal/middleware/auth.go + github.com/clerk/clerk-sdk-go/v2*
+
+Clerk issues short-lived session tokens (JWTs) when users sign in.
+A JWT is three base64 parts: header, payload (claims), signature.
+The signature is produced with Clerk's private key; Clerk publishes
+the matching public key at a well-known URL (their "JWKS" endpoint).
+
+Any service with the public key can verify the signature **locally** —
+no round-trip to Clerk per request. `jwt.Verify` in the Go SDK
+transparently fetches and caches the JWKS on first use and does the
+signature check for us. The Clerk secret key we load at startup
+(`clerk.SetKey`) tells the SDK which Clerk instance to fetch JWKS for.
+
+Once the signature is verified, the `sub` claim in the payload is the
+Clerk user ID (`user_2abc...`). That's what we put in the request
+context and what handlers use to identify the caller.
+
+Stateless verification is what makes JWT auth fast and scale-friendly
+— the API never has to call Clerk to answer "is this request
+authorized." Trade-off is that a leaked token stays valid until it
+expires, so Clerk keeps sessions short (minutes) and refreshes them
+on the client.
+
+---
+
+## Hot-reload cwd matters for env loading
+*apps/api/.air.toml + apps/api/cmd/api/main.go*
+
+`main.go` calls `godotenv.Load("../../.env.local")` — a path relative
+to the **process's current working directory**, not the binary's
+location. With `make run` (plain `go run`), cwd is `apps/api/` and
+the path resolves to the repo root.
+
+When adding Air, the temptation is to put `.air.toml` somewhere else
+or to have Air change directories before running the binary. Don't.
+Keep `.air.toml` in `apps/api/` so Air runs from the same cwd as
+`make run`, and `../../.env.local` keeps resolving correctly without
+touching code.
+
+General rule: when a process reads files via relative paths, any tool
+that wraps or restarts that process must preserve the cwd the path
+was written for.

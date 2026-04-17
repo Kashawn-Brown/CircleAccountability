@@ -212,15 +212,16 @@ yet. No deep infra work.
 ### Phase 1 — Auth + user foundation
 Goal: real users in a real system.
 
-- [ ] Clerk integration (mobile, web, Go backend)
+- [ ] Clerk integration (mobile, web, Go backend) — backend done; mobile
+  and web pending
 - [ ] Signup / signin / signout flows on mobile
 - [ ] User record creation/sync in Postgres
 - [ ] Basic profile screen
 - [ ] Protected routes/screens
 - [ ] Session handling across clients
 - [ ] /users endpoints (backend)
-- [ ] Auth middleware (backend)
-- [ ] User table migration
+- [x] Auth middleware (backend)
+- [x] User table migration
 - [ ] Web catches up with mobile
 - [ ] CI/CD baseline added (GitHub Actions: go vet, Go tests, TS
   typecheck, lint)

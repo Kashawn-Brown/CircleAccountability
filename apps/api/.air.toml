@@ -1,0 +1,37 @@
+# Air config for the Circle Accountability API.
+# Run with `air` or `make dev` from this directory.
+# Docs: https://github.com/air-verse/air
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Build the API binary. Windows needs the .exe suffix; on macOS/Linux the
+  # .exe extension is harmless and the binary still runs correctly.
+  cmd = "go build -o ./tmp/main.exe ./cmd/api"
+  bin = "./tmp/main.exe"
+
+  # Watch these file types. SQL and env files don't need a rebuild.
+  include_ext = ["go"]
+
+  # Don't rebuild when these directories change.
+  exclude_dir = ["tmp", "bin", "migrations", "vendor"]
+
+  # Wait this long after a change before rebuilding — debounces rapid saves.
+  delay = 500  # ms
+
+  # If the build fails, don't crash Air — keep watching and retry on next save.
+  stop_on_error = false
+
+  # Log build errors to a file so they're easy to scroll back through.
+  log = "build-errors.log"
+
+  # Send SIGTERM first, then kill after this many ms if it hasn't exited.
+  kill_delay = "2s"
+
+[log]
+  time = true
+
+[misc]
+  # Delete the tmp directory when Air exits cleanly (Ctrl+C).
+  clean_on_exit = true

@@ -14,19 +14,27 @@ type Config struct {
 
 	// Database
 	DatabaseURL string
+
+	// Auth — Clerk secret key, used by the Clerk Go SDK to fetch JWKS and
+	// verify session tokens on incoming requests.
+	ClerkSecretKey string
 }
 
 // Load reads config from environment variables.
 // It returns an error if any required variable is missing.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:        getEnv("API_PORT", "8090"),
-		Env:         getEnv("API_ENV", "development"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		Port:           getEnv("API_PORT", "8090"),
+		Env:            getEnv("API_ENV", "development"),
+		DatabaseURL:    os.Getenv("DATABASE_URL"),
+		ClerkSecretKey: os.Getenv("CLERK_SECRET_KEY"),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	if cfg.ClerkSecretKey == "" {
+		return nil, fmt.Errorf("CLERK_SECRET_KEY is required")
 	}
 
 	return cfg, nil

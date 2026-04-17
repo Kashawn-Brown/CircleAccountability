@@ -213,17 +213,19 @@ yet. No deep infra work.
 Goal: real users in a real system.
 
 - [ ] Clerk integration (mobile, web, Go backend) — backend done;
-  mobile done (5a/5b — provider, token cache, real auth screens);
-  web pending
+  mobile done (5a/5b/5c/5d — provider, token cache, real auth
+  screens, authenticated API client + sync + profile); web pending
 - [x] Signup / signin / signout flows on mobile (email/password and
   Google OAuth via Clerk SSO)
-- [x] User record creation/sync in Postgres (backend side —
-  `POST /users/sync` upserts; mobile trigger in step 5d)
-- [ ] Basic profile screen
+- [x] User record creation/sync in Postgres (backend
+  `POST /users/sync` upserts, mobile `(app)/_layout` fires it as
+  fire-and-forget on sign-in)
+- [x] Basic profile screen (mobile — `/profile` reads
+  `GET /users/me` with loading / error-retry / fields layout)
 - [x] Protected routes/screens (mobile — `(auth)` and `(app)` route
   groups with auth-state-aware layouts)
 - [x] Session handling across clients (mobile — Secure Store token
-  cache; web pending)
+  cache + lazy `getToken` injection into API client; web pending)
 - [x] /users endpoints (backend)
 - [x] Auth middleware (backend)
 - [x] User table migration

@@ -191,6 +191,17 @@ authorized." Trade-off is that a leaked token stays valid until it
 expires, so Clerk keeps sessions short (minutes) and refreshes them
 on the client.
 
+**One real-world gotcha on the cache:** Clerk rotates the signing
+keys in its JWKS periodically. The Go SDK caches what it fetched on
+first use and refreshes on its own schedule. A long-lived dev process
+can outlive a rotation — after which it holds a JWKS that no longer
+contains the current signing key and rejects fresh JWTs as "invalid"
+even though nothing is actually wrong with them. Killing and
+restarting the API refetches a current JWKS and clears the issue.
+This bit us once in step 5d (see `errors.md`) — diagnosed by logging
+the specific `jwt.Verify` error server-side instead of the generic
+"invalid or expired" message we send to the client.
+
 ---
 
 ## Hot-reload cwd matters for env loading
@@ -463,3 +474,91 @@ result shape.
 dismisses the browser, `startSSOFlow` resolves with no
 `createdSessionId` and no error thrown. Treat the absence of a
 session as "user cancelled," not as failure.
+
+---
+
+## Token getter injection — `useAuth` can't live next to `ClerkProvider`
+*apps/mobile/app/_layout.tsx and apps/mobile/src/lib/api.ts*
+
+The API client attaches `Authorization: Bearer <jwt>` per request by
+calling a `getToken()` function we hand it at app init. That function
+comes from Clerk's `useAuth()` hook. The trick: a React hook can't run
+in the same component that mounts its provider — `useAuth()` inside
+the component that renders `<ClerkProvider>` would read the context
+before the provider has supplied it.
+
+Pattern used here:
+
+```tsx
+export default function RootLayout() {
+  return (
+    <ClerkProvider ...>
+      <RootContent />  {/* inner component for hook access */}
+    </ClerkProvider>
+  );
+}
+
+function RootContent() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    api.setTokenGetter(async () => await getToken());
+  }, [getToken]);
+  // ...render children...
+}
+```
+
+`setTokenGetter` hands the API client a **lazy** source of tokens
+rather than a token value. Every request re-pulls via the getter so
+we never cache a stale JWT — Clerk session tokens are short-lived
+(minutes) and Clerk refreshes them in the background, so a cached
+copy would go stale within the hour.
+
+This pattern will show up again on the web side with `@clerk/nextjs`'s
+equivalent hook — different hook, same split: provider at the top,
+hook in an inner component, API client bound from that inner
+component's effect.
+
+---
+
+## Fire-and-forget mutation in a route-group layout
+*apps/mobile/app/(app)/_layout.tsx*
+
+The first time an authenticated user reaches the app, we want the
+local `users` row materialized in Postgres via `POST /users/sync`.
+That has to happen *after* auth state flips but *before* any screen
+queries `/users/me` expecting a row. The natural seam is the `(app)`
+group's layout — it renders only when signed in, and wraps every
+protected screen.
+
+```tsx
+const syncedRef = useRef<string | null>(null);
+
+useEffect(() => {
+  if (!isSignedIn || !userId) return;
+  if (syncedRef.current === userId) return;  // dedupe for this user
+  syncedRef.current = userId;                 // claim immediately
+  api.post('/api/v1/users/sync', {}).catch((err) => {
+    console.warn('Initial /users/sync failed:', err);
+    syncedRef.current = null;                 // allow retry next render
+  });
+}, [isSignedIn, userId]);
+```
+
+Three things going on:
+
+1. **Fire-and-forget** — we don't `await` sync before rendering. Sync
+   is ~200ms and idempotent; blocking the whole protected tree on it
+   would be a visible pause for every sign-in. The profile screen
+   surfaces "not synced yet" with a retry button for the rare race
+   where the user navigates there before sync lands.
+2. **`useRef` as a "did I do this once" flag.** Storing the synced
+   user ID in a ref (not state) dedupes across re-renders without
+   triggering another render itself. Key of the map is the user ID —
+   so if the session flips to a different user, we sync again.
+3. **Ref cleared on error.** If the request fails, we reset the ref so
+   the next render attempt will retry. React Native effects don't
+   auto-retry; without this reset we'd silently stay unsynced.
+
+The group layout unmounts on sign-out (because `(app)/_layout` redirects
+to `/sign-in` when `!isSignedIn`), so the ref is naturally reset
+between user sessions. No cross-user leakage to worry about.

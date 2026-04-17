@@ -218,3 +218,41 @@ Third time the "Metro/Next/TypeScript resolve a hoisted wrong-version
 package" family has bitten this repo (after `@types/react` and `react`
 in Phase 0). Promoted to a rule: see the learnings entry on peer-dep
 overrides.
+
+---
+
+### Stale JWKS cache rejected valid Google SSO JWTs
+*Phase 1 — step 5d*
+
+After wiring `POST /users/sync` as a fire-and-forget effect in
+`(app)/_layout.tsx`, email/password sign-in worked end-to-end but
+Google SSO sign-in for a new user landed on the profile screen with
+"user not synced yet" and retry never cleared it.
+
+Diagnosis: Metro logs showed `Initial /users/sync failed: [Error:
+invalid or expired session token]` — so the sync *was* firing but the
+API was rejecting the JWT. The middleware was swallowing the
+`jwt.Verify` error behind a generic message; we added a `slog.Warn`
+in `auth.go` that logs the real error, path, and the token's first
+12 characters. Restarted the API under a claude-managed background
+process so we could read its logs.
+
+On the retry, sync returned 200 cleanly. Row got created. The problem
+was gone. The old `main.exe` had been running for hours — long enough
+that its in-memory JWKS cache (fetched on first use by the Clerk Go
+SDK) no longer contained the current signing key. Clerk rotates keys
+on its end; the SDK caches the JWKS it fetched and doesn't proactively
+re-poll. Email/password tokens happened to still be signed by a key
+already in the cache; the fresh Google SSO token got a newer key that
+wasn't cached, so verification failed.
+
+Fix: restarting the API refetches JWKS. The bug was self-healing once
+we killed the old `main.exe` and let Air rebuild. Left the improved
+error logging in place — next time this shape of failure happens we'll
+see the exact reason instead of the generic "invalid or expired" line.
+
+Future-proof note: the Clerk Go SDK handles JWKS caching transparently
+and does refresh on its own schedule, but a long-lived dev process can
+drift far enough that keys rotate out from under it. In production on
+Cloud Run, instances are short-lived enough that this is unlikely to
+bite. Worth revisiting before we ship if we see any recurrence.

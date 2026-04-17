@@ -9,28 +9,28 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Phase 1 is 7 of 9 steps deep. Mobile auth surface is now fully
-functional — email/password sign-in, sign-up with email verification,
-sign-out, and Google OAuth via Clerk's `useSSO` hook. Tap Continue
-with Google → system browser opens → consent on Google → redirects
-back via the `circle://` URL scheme → land on /home. Same flow
-whether the Google account is new (Clerk auto-creates a user) or
-already linked (signs in to existing). Cancellation in the browser
-is silent by design.
+Phase 1 mobile is complete. Full auth surface plus first real
+end-to-end round-trip to the Go API: sign in (email/password or
+Google SSO) → `(app)/_layout` fires `POST /users/sync` in the
+background → local Postgres row materialized → profile screen reads
+`GET /users/me` and renders the mirrored user. Both paths verified
+on iPhone today; DB shows one email/password row and one Google
+row with the expected display names.
 
-Next step: **5d — authenticated API client + `/users/sync` on
-sign-in success + minimal profile screen**. This is the first time
-the mobile app talks to our Go backend: extend `src/lib/api.ts` to
-attach the Clerk session JWT, call `POST /users/sync` once after
-sign-in to materialize the local users row, and read `GET /users/me`
-on the profile screen. Also need to switch `EXPO_PUBLIC_API_URL`
-from `localhost` to your computer's LAN IP since Expo Go on a real
-device can't reach `localhost`.
+Next step: **step 6 — web catches up with mobile**. Per the
+mobile-first rule in CLAUDE.md, web follows. Scope: install
+`@clerk/nextjs`, wrap the web app in `<ClerkProvider>`, add sign-in
+and sign-up pages, wire `src/lib/api.ts` to attach the Clerk JWT,
+trigger `/users/sync` after sign-in, and add a minimal
+profile page that reads `/users/me`. After that, step 7 is the CI/CD
+baseline (GitHub Actions: go vet + Go tests + TS typecheck + lint
+on every PR to main). ESLint configs for web and mobile still
+pending — can fold in before CI so lint has something to run.
 
-Deferred still: ESLint configs (Phase 0 carryover), Expo splash and
-icon theming (eas build prep), production Google Cloud OAuth
-credentials (deploy time), Apple Sign-In (App Store submission —
-required when any third-party SSO is offered).
+Deferred still: Expo splash and icon theming (eas build prep),
+production Google Cloud OAuth credentials (deploy time), Apple
+Sign-In (App Store submission — required when any third-party SSO is
+offered).
 
 Branch: phase-1/auth
 
@@ -211,3 +211,49 @@ in the Clerk dashboard that the test Google account appears as a
 linked external account on the Clerk user. Production Google Cloud
 OAuth credentials deferred to deploy time, and Apple Sign-In
 deferred to App Store submission (both captured in decisions.md).
+
+**Step 5d — authenticated API client + `/users/sync` trigger +
+profile screen.** First real mobile-to-API round-trip. Extended
+`src/lib/api.ts` with a `setTokenGetter` hook so every request pulls
+a fresh Clerk JWT and attaches it as `Authorization: Bearer <jwt>` —
+we hand the client a lazy getter, not a cached token, because session
+tokens rotate within the hour. Split the root layout into
+`RootLayout` (which mounts `<ClerkProvider>`) and an inner
+`RootContent` that can call `useAuth()` to bind the getter — hooks
+can't run in the same component that provides the context they read.
+
+The `(app)` route group layout fires `POST /users/sync` as a fire-and-
+forget effect when auth state flips to signed-in, deduped by a
+`useRef` keyed on the Clerk user ID and reset on error so a retry
+happens on the next render. Home gets a new "View profile" button
+alongside sign-out. New `/profile` screen reads `GET /users/me` with
+spinner / error-with-retry / fields layout, rendered inside the group
+layout's `<Stack>` so it inherits auth protection.
+
+Also updated `packages/types` `User` to match the Go response shape
+(added `clerkUserId`, dropped the unused `phoneNumber`, made
+`username` and `avatarUrl` optional since both can be absent from
+Clerk). Switched `EXPO_PUBLIC_API_URL` to the computer's LAN IP
+because Expo Go on a real device can't reach `localhost` on the
+machine.
+
+Hit one subtle bug during verification: email/password sign-in synced
+cleanly but Google SSO for a new Google account returned "user not
+synced yet" on the profile screen with retry not clearing it. Metro
+logs showed sync was firing and getting a 401 "invalid or expired
+session token" from the API. Added `slog.Warn` to `auth.go` to log
+the real `jwt.Verify` error (without the full token), restarted the
+API under a claude-managed background process to capture logs, and
+on the retry sync returned 200 cleanly. Root cause was a stale JWKS
+cache in the long-running API process — Clerk rotates signing keys
+and the Go SDK's in-memory JWKS didn't include the key used to sign
+the fresh SSO token. The API restart refetched JWKS and fixed it.
+Captured in errors.md; learnings.md JWT entry updated with the cache
+rotation gotcha. Diagnostic logging in `auth.go` stays — next time
+this shape of failure shows up we'll see the exact reason.
+
+End-to-end verified on iPhone: sign in with existing email/password
+→ sync 200 → profile loads with email, display name, user ID,
+member-since date. Sign out, sign in with Google as a different
+user → new row inserted (confirmed via `psql`) → profile shows the
+Google account's email and "Kashawn Brown" as display name.

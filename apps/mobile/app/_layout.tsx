@@ -1,7 +1,9 @@
-import { ClerkProvider } from '@clerk/clerk-expo';
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 
+import { api } from '@/lib/api';
 import { colors } from '@/lib/theme';
 import { tokenCache } from '@/lib/tokenCache';
 
@@ -22,6 +24,24 @@ if (!publishableKey) {
 export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <RootContent />
+    </ClerkProvider>
+  );
+}
+
+// Inner component so we can call useAuth() — hooks can't run at the same
+// level as the provider that supplies them. Binds the API client to Clerk's
+// session token getter so every authenticated request automatically carries
+// a fresh JWT without each call site plumbing it in.
+function RootContent() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    api.setTokenGetter(async () => await getToken());
+  }, [getToken]);
+
+  return (
+    <>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -29,6 +49,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       />
-    </ClerkProvider>
+    </>
   );
 }

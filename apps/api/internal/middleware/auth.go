@@ -4,6 +4,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -33,6 +34,14 @@ func Auth(next http.Handler) http.Handler {
 
 		claims, err := jwt.Verify(r.Context(), &jwt.VerifyParams{Token: token})
 		if err != nil {
+			// Log the specific verification error server-side so we can
+			// debug token issues (clock skew, wrong Clerk instance, stale
+			// JWT, etc.) without leaking details to the client.
+			slog.Warn("jwt verify failed",
+				"path", r.URL.Path,
+				"error", err.Error(),
+				"token_prefix", safePrefix(token),
+			)
 			unauthorized(w, "invalid or expired session token")
 			return
 		}
@@ -51,6 +60,16 @@ func ClerkUserIDFromContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return id, true
+}
+
+// safePrefix returns the first 12 characters of the token for log correlation.
+// JWTs have a well-known "eyJ..." header prefix that's not secret; the signing
+// secret is elsewhere in the token. We never log the whole JWT.
+func safePrefix(token string) string {
+	if len(token) > 12 {
+		return token[:12] + "..."
+	}
+	return token
 }
 
 // bearerToken extracts the token from an `Authorization: Bearer <token>` header.

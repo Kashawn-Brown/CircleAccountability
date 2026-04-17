@@ -210,3 +210,136 @@ touching code.
 General rule: when a process reads files via relative paths, any tool
 that wraps or restarts that process must preserve the cwd the path
 was written for.
+
+---
+
+## Repository pattern for database access
+*apps/api/internal/repo/*
+
+Handlers do not touch the database directly. Each domain entity has
+a file under `internal/repo/` that owns the SQL and exposes Go methods.
+Handlers call those methods, serialize the result, and write the
+response.
+
+The shape for a repo:
+
+```go
+type Users struct { pool *pgxpool.Pool }
+
+func NewUsers(pool *pgxpool.Pool) *Users { return &Users{pool: pool} }
+
+func (u *Users) GetByClerkID(ctx context.Context, id string) (User, error) { ... }
+```
+
+Constructed once in `main.go` and passed into the handlers that need
+it. Keeps HTTP concerns (status codes, JSON encoding) and DB concerns
+(SQL, scanning) independent. Makes it possible to swap in a fake repo
+for tests later without pulling a database into the test setup — we
+aren't building that this phase, but the structure supports it.
+
+Related patterns used in the users repo:
+
+- **`pool.QueryRow(ctx, sql, args...).Scan(&...)`** — pgx's shape for
+  a single-row read. Takes the column values in SELECT order into
+  pointers; returns `pgx.ErrNoRows` if no row matched.
+- **Nullable columns as `*string`** — `username` and `avatar_url` are
+  nullable. A pointer cleanly represents "value or null": `nil` means
+  NULL, `&"alice"` means present. Scans and JSON-encodes both
+  directions without the clunky `sql.NullString` wrapper.
+- **Sentinel errors + `errors.Is`** — the repo exposes `ErrNotFound`
+  as a package-level variable. Callers check with
+  `errors.Is(err, repo.ErrNotFound)`, which walks the wrapped chain,
+  so adding context via `fmt.Errorf("...: %w", err)` deeper doesn't
+  break callers.
+
+---
+
+## Postgres upsert: `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+*apps/api/internal/repo/users.go*
+
+The `/users/sync` endpoint needs to either insert a new row for a
+first-time sign-in or update mirrored fields on an existing row.
+Postgres does this in one statement:
+
+```sql
+INSERT INTO users (clerk_user_id, email, display_name, username, avatar_url)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (clerk_user_id) DO UPDATE SET
+    email        = EXCLUDED.email,
+    display_name = EXCLUDED.display_name,
+    username     = EXCLUDED.username,
+    avatar_url   = EXCLUDED.avatar_url
+RETURNING id, clerk_user_id, email, display_name, username, avatar_url, created_at, updated_at;
+```
+
+Three things to know:
+
+1. **`ON CONFLICT (<col>)` needs a unique constraint or index on that
+   column.** `clerk_user_id` has `UNIQUE` from migration 000002, which
+   is what this conflict clause points at. Without that, you get an
+   error at plan time.
+2. **`EXCLUDED.col` inside the DO UPDATE refers to the row the INSERT
+   tried to add.** So `email = EXCLUDED.email` means "on conflict,
+   overwrite email with the value that would have been inserted." You
+   don't re-reference `$2` etc.
+3. **`RETURNING` gives the final row state back in the same round
+   trip** — including values set by triggers like our
+   `updated_at = NOW()`. No second SELECT needed. On an UPDATE path
+   you get the updated row; on an INSERT path you get the inserted
+   row; on a do-nothing path you'd get nothing, but we never do-nothing
+   here.
+
+This shape — upsert + RETURNING — will come up for every mirror-style
+table where the external system is authoritative and we cache locally.
+
+---
+
+## Go layering: thin by default, add layers as real logic arrives
+*apps/api/internal/*
+
+The backend currently has two layers under `internal/`: `handler/`
+and `repo/`. A handler reads the request, orchestrates one or two
+calls (Clerk SDK, repo), serializes the response. A repo owns SQL.
+There is no service/domain layer in between. This is deliberate and
+idiomatic for Go at this scale.
+
+The Node / TypeScript convention is usually three layers from day
+one: controller → service → repository, each its own class, often
+assembled by a DI container. That shape is so standard that many TS
+templates generate the full stack before any logic exists. The Go
+community defaults to the opposite: start with as few layers as the
+code actually needs, and add layers when real business logic appears
+— not before.
+
+What counts as "real business logic" in this project, i.e. what will
+trigger a service-layer package when we get there:
+
+- **Phase 4 progress calculation** — period math, cadence rules,
+  per-member fill, circle completion. Too specific for a handler and
+  has no SQL of its own; will live in an `internal/progress` or
+  `internal/checkin` package that handlers and possibly other services
+  call into.
+- **Phase 3 invite state machine** — pending → accepted / expired /
+  revoked with side effects on `circle_members`. Same reasoning.
+
+Until that kind of rule arrives, routing handlers through a pass-
+through service would produce two-line `service.Sync()` methods that
+just forward to `repo.Upsert(...)`. Pure indirection, no logic
+encapsulated. Go idiom is to skip that and grow into it.
+
+Two related Go-isms worth naming:
+
+- **Packages are organized by capability, not by layer-per-entity.**
+  `handler/users.go` is a file exposing package-level functions, not
+  a `UsersController` class. Adding a new entity means adding files
+  to existing packages, not scaffolding a new trio of layer classes
+  for every noun in the domain.
+- **Constructor-style DI stays explicit.** `repo.NewUsers(pool)` is
+  called in `main.go` and passed into the handlers that need it.
+  No DI container, no annotations, no reflection. The wiring graph
+  is whatever `main.go` says it is, readable top-to-bottom.
+
+Concrete rule for this repo: the moment a handler contains an `if`
+that isn't input validation or an error dispatch — a branch
+expressing a product rule — that branch gets lifted into a service
+package. Until then, two layers is the right number.

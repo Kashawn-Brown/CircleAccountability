@@ -19,6 +19,7 @@ import (
 	"github.com/circle-accountability/api/internal/db"
 	"github.com/circle-accountability/api/internal/handler"
 	"github.com/circle-accountability/api/internal/middleware"
+	"github.com/circle-accountability/api/internal/repo"
 )
 
 func main() {
@@ -53,6 +54,10 @@ func main() {
 	defer pool.Close()
 	slog.Info("connected to database")
 
+	// Repositories. Constructed once and shared across handlers — each holds
+	// the pool and exposes methods for its entity's SQL.
+	users := repo.NewUsers(pool)
+
 	// Build the router.
 	r := chi.NewRouter()
 
@@ -70,8 +75,8 @@ func main() {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.Auth)
 
-		// Temporary step-3 endpoint; replaced in step 4 by /users/me.
-		r.Get("/me/ping", handler.Ping())
+		r.Post("/users/sync", handler.Sync(users))
+		r.Get("/users/me", handler.Me(users))
 	})
 
 	// Start the HTTP server with graceful shutdown.

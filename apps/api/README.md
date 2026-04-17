@@ -67,8 +67,11 @@ Public:
 - `GET /health` — liveness probe. Returns `{ "status": "ok", "env": "..." }`.
 
 Protected (require `Authorization: Bearer <clerk-session-jwt>`):
-- `GET /api/v1/me/ping` — temporary verification endpoint, echoes the
-  authenticated Clerk user ID. Replaced by `/users/me` in Phase 1 step 4.
+- `POST /api/v1/users/sync` — upserts the local `users` row from the
+  authenticated Clerk user's current profile (email, name, avatar).
+  Idempotent; clients call this once on every sign-in. Returns the row.
+- `GET /api/v1/users/me` — returns the local `users` row for the
+  authenticated user. 404 if the client hasn't called `/users/sync` yet.
 
 ## Layout
 
@@ -77,8 +80,9 @@ cmd/api/          Runnable binary — main.go wires everything up.
 internal/         Private packages (Go compiler enforces this).
   config/         Loads and validates env vars at startup.
   db/             pgx connection pool.
-  handler/        HTTP handlers (thin — no business logic yet).
+  handler/        HTTP handlers — read request, call repo + SDKs, serialize JSON.
   middleware/     Logger, CORS, Auth.
+  repo/           Database access — one file per entity, holds the SQL.
 migrations/       golang-migrate SQL files.
 .air.toml         Hot-reload config for `make dev`.
 Makefile          Common commands: run, dev, build, migrate-*, test, lint.

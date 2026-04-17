@@ -225,3 +225,69 @@ Air config (`.air.toml`) lives in `apps/api/` alongside the Makefile
 so Air runs with the same cwd as `make run`, which keeps
 `godotenv.Load("../../.env.local")` in `main.go` resolving correctly
 without code changes.
+
+---
+
+## Clerk is the source of truth for identity; client is never trusted
+*Phase 1*
+
+`POST /users/sync` takes no request body. The authenticated Clerk
+user ID comes from the verified JWT (via the Auth middleware's
+context). Email, name, and avatar come from a server-to-server call
+to Clerk's API (`user.Get`). The client never asserts "I am
+alice@example.com" — only Clerk does.
+
+Reason: if we accepted identity fields from the client body, a signed-
+in user could claim any email or name and have us mirror it into our
+database unchanged. Making the server round-trip to Clerk costs one
+extra call per sync (rare — once per sign-in), and in return no
+mirror field can be lied about.
+
+Trade-off considered and rejected: **custom JWT claims** (add email
+to the Clerk-issued JWT via a JWT template) would skip the Clerk API
+call. We didn't do this because it adds dashboard configuration we
+haven't committed to, and sync is infrequent enough that one extra
+HTTP hop per sign-in is not worth optimizing yet.
+
+---
+
+## Explicit `/users/sync` on sign-in, not lazy creation on any endpoint
+*Phase 1*
+
+Clients are expected to call `POST /users/sync` once on every sign-in.
+Other authenticated endpoints assume the local row exists — if a
+client hits `GET /users/me` without syncing first, it gets a 404 with
+a specific "not synced yet" message rather than a silent background
+upsert.
+
+Reason: lazy creation (auto-upsert inside every handler that needs a
+user) would hide the "user just signed in" moment, spread the
+Clerk-fetch logic across every handler that touches a user, and make
+it harder to run one-time hooks on first sign-in later (welcome
+email, onboarding flags, default circle membership). An explicit
+endpoint keeps that moment addressable.
+
+Trade-off: clients have one extra call on sign-in. Acceptable —
+mobile and web both already have a natural "post-sign-in"
+callback where this fits cleanly.
+
+---
+
+## Repository pattern for database access
+*Phase 1*
+
+All SQL lives under `internal/repo/`. Handlers do not touch the
+database directly — they call methods on a repo struct that holds the
+connection pool. One file per entity (`repo/users.go`,
+`repo/circles.go` when that phase arrives).
+
+Reason: keeps HTTP concerns (status codes, JSON shape, request
+parsing) and DB concerns (SQL text, scanning, error-to-sentinel
+mapping) from bleeding into each other. Also makes handlers testable
+against a fake repo later without standing up a database — we aren't
+building that harness today, but the structure leaves the door open.
+
+Trade-off: one more layer of indirection than "just call pgx in the
+handler." The tax is small and pays for itself the first time two
+different handlers need the same query (which will happen in Phase 3
+around memberships).

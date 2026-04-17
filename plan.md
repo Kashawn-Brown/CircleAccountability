@@ -215,11 +215,12 @@ Goal: real users in a real system.
 - [ ] Clerk integration (mobile, web, Go backend) — backend done; mobile
   and web pending
 - [ ] Signup / signin / signout flows on mobile
-- [ ] User record creation/sync in Postgres
+- [x] User record creation/sync in Postgres (backend side —
+  `POST /users/sync` upserts; mobile trigger in step 5)
 - [ ] Basic profile screen
 - [ ] Protected routes/screens
 - [ ] Session handling across clients
-- [ ] /users endpoints (backend)
+- [x] /users endpoints (backend)
 - [x] Auth middleware (backend)
 - [x] User table migration
 - [ ] Web catches up with mobile

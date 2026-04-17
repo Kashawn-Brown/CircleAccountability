@@ -390,3 +390,33 @@ resolution. Changing the field without deleting `package-lock.json`
 and all `node_modules` does nothing — the lockfile persists the old
 resolution and npm won't rewrite a lock that's still internally
 consistent. Always nuke-and-reinstall after editing `overrides`.
+
+---
+
+## Clerk's default password policy: length + breach check, not complexity
+*apps/mobile/app/(auth)/sign-up.tsx — policy lives in Clerk dashboard*
+
+Clerk's default password policy enforces:
+- Minimum length (8 characters by default)
+- Not present in HaveIBeenPwned's leaked-password database
+
+It does **not** enforce the traditional "complexity" rules many
+validators check — no required uppercase, lowercase, digit, special
+character. A password like `correcthorsebatterystaple` passes;
+`Password1!` fails the breach check because that exact string is in
+the leaked dataset.
+
+This surfaced during 5b testing: a password the user expected to be
+"strong enough" came back as "this password has been found in an
+online data breach" rather than the "too weak — must include..."
+phrasing typical of complexity validators.
+
+**Implication for our error UI.** Surface Clerk's `longMessage`
+verbatim — don't invent friendly translations based on what we
+*think* the password rules are. The policy is configurable per Clerk
+instance from the dashboard; our UI shouldn't have to track which
+knobs are on. The `clerkError` helper in our sign-in / sign-up
+screens already does this, which is the right call.
+
+If we ever want stricter rules (rotation, history, MFA-required for
+admins, etc.), they're a Clerk dashboard setting — not app code.

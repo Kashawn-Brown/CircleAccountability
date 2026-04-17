@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/clerk-expo';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { colors } from '@/lib/theme';
 import { tokenCache } from '@/lib/tokenCache';
 
 // Clerk's publishable key is safe to inline in the client bundle — it only
@@ -25,7 +26,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#0f172a' },
+          contentStyle: { backgroundColor: colors.bg },
         }}
       />
     </ClerkProvider>

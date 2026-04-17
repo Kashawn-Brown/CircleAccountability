@@ -212,14 +212,18 @@ yet. No deep infra work.
 ### Phase 1 — Auth + user foundation
 Goal: real users in a real system.
 
-- [ ] Clerk integration (mobile, web, Go backend) — backend done; mobile
-  and web pending
-- [ ] Signup / signin / signout flows on mobile
+- [ ] Clerk integration (mobile, web, Go backend) — backend done;
+  mobile done (5a/5b — provider, token cache, real auth screens);
+  web pending
+- [x] Signup / signin / signout flows on mobile (email/password done;
+  Google OAuth lands in 5c)
 - [x] User record creation/sync in Postgres (backend side —
-  `POST /users/sync` upserts; mobile trigger in step 5)
+  `POST /users/sync` upserts; mobile trigger in step 5d)
 - [ ] Basic profile screen
-- [ ] Protected routes/screens
-- [ ] Session handling across clients
+- [x] Protected routes/screens (mobile — `(auth)` and `(app)` route
+  groups with auth-state-aware layouts)
+- [x] Session handling across clients (mobile — Secure Store token
+  cache; web pending)
 - [x] /users endpoints (backend)
 - [x] Auth middleware (backend)
 - [x] User table migration

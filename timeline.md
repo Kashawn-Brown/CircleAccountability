@@ -9,18 +9,19 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Phase 1 is ~5 of 9 steps deep. Backend endpoints and middleware done
-earlier; on top of that, **mobile step 5a** now has the structural
-wiring: `ClerkProvider` at the root, Secure-Store token cache, route
-groups `(auth)` / `(app)` with layouts that route by Clerk auth state,
-placeholder sign-in and home screens. Verified on iPhone via Expo Go
-— app boots, spinner flashes while Clerk loads, lands on the sign-in
-placeholder on the slate background.
+Phase 1 is 6 of 9 steps deep. Backend (steps 1–4) is done; on mobile,
+5a wired Clerk structurally and **5b** now has real email/password
+sign-in, sign-up with email verification, and sign-out — all working
+end-to-end on iPhone. A central theme palette lives at
+`src/lib/theme.ts`; every screen imports from it. Clerk errors
+(wrong password, breached password, bad verification code) surface
+verbatim in red under the form inputs.
 
-Next step: **step 5b — real email/password sign-in and sign-up**
-with the Clerk hooks (`useSignIn`, `useSignUp`), including the email
-verification code flow. After that, 5c is Google OAuth, and 5d wires
-the authenticated API client + `/users/sync` on sign-in success.
+Next step: **step 5c — Google OAuth button** on both sign-in and
+sign-up via Clerk's `useSSO` hook + `expo-auth-session`. After that,
+5d wires the authenticated API client + `/users/sync` on sign-in
+success — the moment a real phone drives the backend we built in
+steps 1–4.
 
 Deferred still: ESLint configs for web and mobile (Phase 0 carryover,
 land before CI). Also deferred to eas build time: Expo splash and
@@ -153,3 +154,32 @@ this repo). Verified after fix: spinner → sign-in placeholder, no
 crashes.
 
 Also created `apps/mobile/README.md` — was missing since Phase 0.
+
+**Step 5b — email/password sign-in, sign-up, and sign-out.** Extracted
+a central palette to `src/lib/theme.ts` (slate bg, emerald accent,
+red danger, etc.) and migrated every existing screen onto it before
+adding new screens, so the next two phases of UI growth pay one
+import cost instead of duplicating hex codes. Replaced the
+placeholder sign-in with a real form using `useSignIn` — single-shot
+`signIn.create` with identifier + password, then `setActive` on
+`status === 'complete'`. The `(auth)/_layout` redirect handles
+navigation to `/home` automatically when auth state flips.
+
+Sign-up is a single component with two stages held in local state.
+Stage 1 (`form`) calls `signUp.create` + `prepareEmailAddressVeri-
+fication({ strategy: 'email_code' })` to send the 6-digit code.
+Stage 2 (`verify`) calls `attemptEmailAddressVerification({ code })`
+and `setActive` on completion. A "Use a different email" button on
+the verify stage resets back to the credentials form. KeyboardAvoid-
+ingView keeps the inputs visible on small screens; inputs disable
+and the button shows a spinner while requests are in flight.
+
+Clerk errors flow through a small `clerkError` helper that pulls
+`err.errors[0].longMessage` with fallbacks — verified for wrong
+password, breached-password rejection (Clerk's default policy is
+length + HaveIBeenPwned, not complexity rules — captured in
+`learnings.md`), and wrong/expired verification codes. All paths
+tested on iPhone end-to-end: sign in as the existing test user,
+sign out (session cleared from Secure Store), sign up a new user
+with a real inbox to receive the verification code, all errors
+visible.

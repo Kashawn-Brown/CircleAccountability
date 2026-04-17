@@ -2,9 +2,11 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { colors } from '@/lib/theme';
+
 // Placeholder home screen. Real home (list of circles, ring preview) arrives
 // in Phase 2. The sign-out button is here now so we can flip auth state
-// while testing steps 5a through 5d.
+// while testing steps 5b through 5d.
 export default function HomeScreen() {
   const { signOut } = useAuth();
 
@@ -29,7 +31,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.bg,
   },
   content: {
     flex: 1,
@@ -41,16 +43,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: colors.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: colors.textMuted,
     textAlign: 'center',
   },
   button: {
-    backgroundColor: '#059669',
+    backgroundColor: colors.accent,
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 10,
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   buttonText: {
-    color: '#f8fafc',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },

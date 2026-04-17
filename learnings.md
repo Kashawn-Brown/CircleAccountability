@@ -84,3 +84,55 @@ requests before the handler sees them.
 
 This pattern will come up again in Phase 1 when we add auth
 middleware — same signature, same `r.Use(...)` registration.
+
+---
+
+## Monorepo package hoisting
+*root `node_modules/` + per-workspace `node_modules/`*
+
+In npm workspaces (and Turborepo's default setup), when multiple
+workspaces depend on the same package, npm tries to hoist a single
+compatible version to the root `node_modules`. Each workspace can
+still have its own copy installed at `apps/<name>/node_modules` if
+the hoisted version doesn't satisfy its declared range — but the
+hoisted version often wins for tools that do module resolution
+starting from a parent directory.
+
+Metro (React Native), Next.js, and TypeScript all walk up the
+directory tree looking for packages. They may find the root copy
+before the workspace-local copy depending on config and call site.
+That's the mechanism behind "my `package.json` says X but the runtime
+sees Y."
+
+Practical consequence: the workspace-local `node_modules` is not a
+reliable way to control runtime behavior for shared packages. If a
+version must be exact across all workspaces, you have to enforce it
+at the root — which is what `overrides` is for (see below).
+
+---
+
+## npm `overrides` for cross-workspace version locking
+*`package.json` at repo root*
+
+The `overrides` field at root `package.json` tells npm "for any
+package matching this name, use exactly this version, regardless of
+what any sub-package or workspace asks for." It's npm's equivalent of
+Yarn's `resolutions`.
+
+```
+"overrides": {
+  "react": "19.1.0"
+}
+```
+
+When to use it: any time a shared package has strict version coupling
+and must not be allowed to drift via hoisting. Typical examples are
+runtime-linked pairs like `react` + `react-native-renderer`, or type
+packages like `@types/react` that have to match across workspaces.
+
+Key gotcha: `overrides` only applies during fresh dependency
+resolution. Adding or changing it without deleting `package-lock.json`
+and re-running `npm install` may do nothing — the lockfile records the
+resolution from the previous install, and npm won't rewrite a lock
+that's still internally consistent. If an override doesn't seem to
+take effect, nuke the lockfile and all `node_modules`, then reinstall.

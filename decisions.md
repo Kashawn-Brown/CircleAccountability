@@ -32,8 +32,8 @@ one system. Scale concerns can be addressed later if they materialize.
 ## Stack lock
 *Phase 0*
 
-- Mobile: Expo + React Native + TypeScript
-- Web: Next.js 15 App Router + TypeScript
+- Mobile: Expo SDK 54 + React Native 0.81 + TypeScript
+- Web: Next.js 15 App Router + TypeScript + Tailwind CSS v4
 - Backend: Go 1.23 + chi + pgx
 - Database: PostgreSQL (managed on Neon in production)
 - Auth: Clerk
@@ -136,3 +136,31 @@ Moving our port was cleaner than disabling a real backup agent. Port
 8090 is just as conventional for dev and carries no production
 implications — Cloud Run injects its own `PORT` env var at runtime,
 overriding whatever the local default is.
+
+---
+
+## Root `overrides` for cross-workspace version locking
+*Phase 0*
+
+When a package is used by more than one workspace and the workspaces
+pin different versions or ranges, npm hoists a single compatible
+version to the root `node_modules`. Metro/Next/TypeScript may resolve
+the root copy at runtime even when the workspace-local copy is
+correct. This bit us twice in Phase 0: once with `@types/react`
+(typecheck errors in mobile) and once with `react` (runtime version
+mismatch with React Native's renderer).
+
+Decision: for any package that needs to be version-locked across
+workspaces, pin it explicitly in the root `package.json` `overrides`
+field. Currently pinned: `react` at `19.1.0`, `@types/react` at
+`19.1.17`.
+
+Reason: makes every workspace's resolution deterministic regardless
+of how npm chooses to dedupe. Non-negotiable for packages with strict
+version coupling — for example `react` must exactly match the React
+version that React Native's renderer was built against, or the phone
+bundle refuses to load.
+
+Operational note: `overrides` only applies on fresh resolution.
+Changing the field requires deleting `package-lock.json` and all
+`node_modules`, then `npm install`, for the new values to take effect.

@@ -198,12 +198,13 @@ Goal: clean foundation before any feature work.
 - [x] Doc files seeded (plan, timeline, learnings, decisions, errors,
   challenges)
 - [x] API boots locally (`make run`, `GET /health` responds)
-- [ ] Web boots locally (`npm run dev`)
-- [ ] Mobile boots locally (`npx expo start`)
+- [x] Web boots locally (`npm run dev`, Tailwind v4 rendering correctly)
+- [x] Mobile boots locally (`npx expo start`, renders on iPhone via Expo Go)
 - [x] API connects to local Postgres
 - [x] golang-migrate works (`make migrate-up`)
-- [ ] Lint/format baseline working across apps
-- [ ] Root README accurate against real setup
+- [ ] Lint/format baseline working across apps (Go `go vet` works; ESLint
+  configs for web + mobile deferred to Phase 1 before CI)
+- [x] Root README accurate against real setup
 
 Output: all apps boot locally, API connects to DB, no real features
 yet. No deep infra work.

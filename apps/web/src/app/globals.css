@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tell Tailwind where to scan for class names.
+   v4's auto-detection doesn't always find files reliably inside a
+   Turborepo subdirectory, so we point it explicitly at our source. */
+@source "../**/*.{ts,tsx}";
+
 @layer base {
   :root {
     --color-brand: #10b981;      /* emerald-500 — primary accent */

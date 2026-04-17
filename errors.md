@@ -80,3 +80,104 @@ Updated `.env.example`, `README.md`, `config.go`, and the mobile/web
 `api.ts` fallbacks together so code defaults and env values stay
 aligned — otherwise a fresh clone without `.env.local` would fail on
 8080 again. Decision recorded in `decisions.md`.
+
+---
+
+### Tailwind v4 classes not applied at all (missing PostCSS config)
+*Phase 0*
+
+The web app rendered HTML with Tailwind class names attached
+(`bg-slate-950`, `flex`, etc.) but no styles took effect — plain text
+on a white background. Typecheck passed. Dev server started with no
+errors. Only symptom was visual, so it would have been missed without
+actually opening a browser.
+
+Root cause: no `postcss.config.mjs` in `apps/web`. Tailwind v4 runs as
+a PostCSS plugin (`@tailwindcss/postcss`). Next.js auto-detects a
+PostCSS config when present; without one, it passes CSS through
+untouched and `@import "tailwindcss"` becomes a silent no-op. No error
+is ever thrown.
+
+Fix: created `apps/web/postcss.config.mjs` registering
+`@tailwindcss/postcss`. Lesson: frontend scaffold verification must
+include a visual check — no automated signal catches missing CSS.
+
+---
+
+### Tailwind v4 ran but generated no utility classes (missing `@source`)
+*Phase 0*
+
+After fixing the PostCSS config, Tailwind was processing CSS (the
+output contained theme variables like `--color-red-500`), but the
+actual utility class selectors (`.bg-slate-950`, `.flex`) weren't in
+the output. Page still unstyled.
+
+Root cause: Tailwind v4's auto-detection of source files uses
+heuristics based on the current working directory. In a Turborepo
+monorepo, running `next dev` from `apps/web` doesn't reliably find the
+`.tsx` files — Tailwind was scanning the wrong scope and finding
+nothing.
+
+Fix: added an explicit `@source "../**/*.{ts,tsx}"` directive in
+`globals.css` (relative to the file, so `../` goes up from `src/app/`
+to `src/`, then recursively). CSS size dropped from 32KB to 8KB
+because Tailwind's JIT now generates only the classes we use.
+
+---
+
+### Expo Go cannot load SDK 53 project (supports 54)
+*Phase 0*
+
+The Expo scaffold was pinned to SDK 53 (`expo: ~53.0.0`). Modern
+Expo Go only supports SDK 54 — attempting to connect from the iPhone
+would find the dev server but refuse to load the bundle. Compounding
+this: current Expo Go has removed the "Enter URL manually" option;
+connections now go through Expo account discovery, so both the phone
+and the machine's Expo CLI must be signed into the same account.
+
+Fix: upgraded the mobile app from SDK 53 → 54:
+1. `npx expo install expo@^54` to pin the SDK
+2. `npx expo install --fix` to align Expo-managed deps — this cascaded
+   React 18.3 → 19.1, React Native 0.76 → 0.81, expo-router 4 → 6,
+   `@types/react` 18 → 19, `eslint-config-expo` 8 → 10
+3. Manual bumps to `devDependencies` (`@types/react`,
+   `eslint-config-expo`) — `expo install --fix` only touches
+   `dependencies`
+4. `npx expo login` on the machine so the dev server advertises to
+   the signed-in account
+
+---
+
+### Shared packages deduped to wrong versions across monorepo workspaces
+*Phase 0*
+
+After the SDK 54 upgrade, two symptoms:
+
+1. TypeScript errors in mobile like `'View' cannot be used as a JSX
+   component ... Property 'refs' is missing in type 'NativeMethods &
+   ViewComponent'` — stale React 18 types bleeding into React 19 code.
+2. A runtime error on the phone:
+   `Incompatible React versions: react is 19.2.5 but
+   react-native-renderer is 19.1.0 — they must match exactly.`
+
+Same root cause for both: npm workspace hoisting. Packages shared
+across workspaces get deduped to the root `node_modules`, and npm
+picks the highest version satisfying all constraints. Mobile had
+`react: 19.1.0` in its own `node_modules`, but the root had
+`react: 19.2.5` (from web's `^19`), and Metro resolved the root copy
+at runtime. Same pattern with `@types/react` — multiple versions in
+the tree, wrong one picked up first.
+
+Fix: added root `overrides`:
+```
+"overrides": {
+  "@types/react": "19.1.17",
+  "react": "19.1.0"
+}
+```
+
+Critical gotcha: `overrides` only applies on a fresh resolve. Changing
+it without deleting `package-lock.json` + all `node_modules` did
+nothing — the lockfile persisted the old resolutions. Had to nuke
+both and `npm install` from scratch before the overrides actually
+took effect.

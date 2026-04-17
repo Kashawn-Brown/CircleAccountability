@@ -291,3 +291,28 @@ Trade-off: one more layer of indirection than "just call pgx in the
 handler." The tax is small and pays for itself the first time two
 different handlers need the same query (which will happen in Phase 3
 around memberships).
+
+---
+
+## Deferred: Expo splash and icon theming
+*Phase 1 — step 5a*
+
+The Expo Go splash screen and app icon currently use default scaffold
+assets (white background, generic icon framing) before the JS bundle
+loads. Known and explicitly deferred.
+
+Reason: splash and icon come from `app.json` config (`expo.splash`,
+`expo.icon`, `expo.ios.icon`, `expo.android.icon`,
+`expo.android.adaptiveIcon`) and need real asset files. They don't
+affect day-to-day development — Expo Go shows the splash before our
+code runs, so nothing we build can change that experience until we
+cut a dev client or production build.
+
+Right time to address: first `eas build` (dev client or internal
+testing). That's when we'll need:
+- Slate-950 splash background matching the app palette
+- iOS icon at all required sizes
+- Android adaptive icon (foreground + background layers)
+- App Store / Play Store icons
+
+Until then, default assets are accepted and not worth a detour.

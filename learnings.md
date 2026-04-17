@@ -343,3 +343,50 @@ Concrete rule for this repo: the moment a handler contains an `if`
 that isn't input validation or an error dispatch — a branch
 expressing a product rule — that branch gets lifted into a service
 package. Until then, two layers is the right number.
+
+---
+
+## Rule: pin loose peer deps of workspace apps in root `overrides`
+*`package.json` (root)*
+
+Three times in this monorepo, a package installed into a workspace app
+has resolved to a version that didn't match the workspace's actual
+framework constraint — because the package declared the dependency
+as a **loose peer dep** and npm's hoist-and-dedupe picked the latest
+compatible version instead of the one the workspace needed:
+
+1. `@types/react` resolved to 19.2.x at the root when the mobile app
+   needed 19.1.x exactly. (Phase 0)
+2. `react` resolved to 19.2.5 when React Native's renderer was built
+   against 19.1.0 exactly. (Phase 0)
+3. `@clerk/clerk-expo`'s peers (`expo-crypto >=12`,
+   `expo-auth-session >=5`, etc.) resolved to SDK 55 versions `55.x`
+   when the mobile app was on SDK 54 and needed `15.x` / `7.x`.
+   (Phase 1 step 5a)
+
+The pattern every time: package A says "I need B, any version ≥ X."
+npm picks the newest B that satisfies A. The workspace using A has a
+stricter unstated requirement on B (exact version, framework-major
+match, etc.). Neither `npm install` nor `npx expo install` check that
+second constraint unless it's written down.
+
+**Rule for this repo:** when a workspace app depends on a package
+whose peer dependencies include anything the workspace also depends
+on — runtime libraries, framework-aligned SDKs, types packages —
+pin those peers in root `package.json` `overrides` to the workspace's
+required version.
+
+**How to check before installing a new package:**
+
+```
+npm view <package> peerDependencies
+```
+
+Any peer with a loose range (`>=X`, `^X`, `*`) that the workspace
+also consumes is a candidate for a root override.
+
+**Operational note:** `overrides` only applies on fresh dep
+resolution. Changing the field without deleting `package-lock.json`
+and all `node_modules` does nothing — the lockfile persists the old
+resolution and npm won't rewrite a lock that's still internally
+consistent. Always nuke-and-reinstall after editing `overrides`.

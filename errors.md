@@ -181,3 +181,40 @@ it without deleting `package-lock.json` + all `node_modules` did
 nothing — the lockfile persisted the old resolutions. Had to nuke
 both and `npm install` from scratch before the overrides actually
 took effect.
+
+---
+
+### Clerk's loose peer deps pulled SDK 55 expo-* packages into an SDK 54 app
+*Phase 1 — step 5a*
+
+Adding `@clerk/clerk-expo` to the mobile app made Expo Go throw
+`Cannot find native module 'ExpoCryptoAES'` at module load. Import
+chain: `@clerk/clerk-expo` → `useSSO` → `expo-auth-session` →
+`expo-crypto/aes` → `requireNativeModule('ExpoCryptoAES')`.
+
+Diagnosis: `npm ls expo-crypto expo-auth-session` showed both at
+`55.0.14` — SDK 55 versions — even though `expo@54.0.33` was installed
+and `node_modules/expo/bundledNativeModules.json` pinned them at
+`~15.0.8` / `~7.0.10` for this SDK. Expo Go SDK 54 only ships the
+native AES module that matches the SDK 54 JS version, so the SDK 55
+JS called into a function that didn't exist in the Expo Go binary.
+
+How they got installed: Clerk declares these as **very loose peer
+dependencies** (`expo-crypto >=12`, `expo-auth-session >=5`). npm
+satisfies peer deps by picking the latest compatible release, and
+`npx expo install` only pins packages you pass to it explicitly — it
+does not walk peer deps. So Clerk's peers quietly became SDK 55
+without anything shouting.
+
+Fix: added explicit pins to root `package.json` `overrides` for
+`expo-crypto ~15.0.8`, `expo-auth-session ~7.0.10`, `expo-web-browser
+~15.0.10`, `expo-application ~7.0.8`, `expo-constants ~18.0.13`,
+`expo-linking ~8.0.11`. Also made them explicit direct deps in
+`apps/mobile/package.json` so the contract is visible. Deleted
+`node_modules` and `package-lock.json` before reinstalling — overrides
+only apply on a fresh resolve.
+
+Third time the "Metro/Next/TypeScript resolve a hoisted wrong-version
+package" family has bitten this repo (after `@types/react` and `react`
+in Phase 0). Promoted to a rule: see the learnings entry on peer-dep
+overrides.

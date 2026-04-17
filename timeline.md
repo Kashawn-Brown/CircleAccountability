@@ -9,26 +9,22 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Phase 1 backend side is effectively done — steps 1 to 4 of 9
-complete. On top of the Clerk integration, users table, and Auth
-middleware from the earlier commit, we now have real endpoints behind
-the middleware: `POST /api/v1/users/sync` (upserts the local users
-row from Clerk's profile on sign-in) and `GET /api/v1/users/me`
-(reads the local row). Code is organized with a new `internal/repo`
-package so SQL lives separately from HTTP handlers; the `users` repo
-exposes `UpsertByClerkID` and `GetByClerkID`. End-to-end verification
-ran today with a real Clerk JWT: 401 without a token, 404 before
-sync, 200 on sync with INSERT path, 200 on `/me` after sync, second
-sync returns the same id with an advanced `updated_at`, and the row
-is visible in Postgres via psql.
+Phase 1 is ~5 of 9 steps deep. Backend endpoints and middleware done
+earlier; on top of that, **mobile step 5a** now has the structural
+wiring: `ClerkProvider` at the root, Secure-Store token cache, route
+groups `(auth)` / `(app)` with layouts that route by Clerk auth state,
+placeholder sign-in and home screens. Verified on iPhone via Expo Go
+— app boots, spinner flashes while Clerk loads, lands on the sign-in
+placeholder on the slate background.
 
-Next step: **step 5 — mobile Clerk integration**. Wire
-`@clerk/clerk-expo`, build the sign-up / sign-in / sign-out screens
-matching the Figma, persist the session, and call `/users/sync` on
-sign-in success so a real phone drives the backend we just built.
+Next step: **step 5b — real email/password sign-in and sign-up**
+with the Clerk hooks (`useSignIn`, `useSignUp`), including the email
+verification code flow. After that, 5c is Google OAuth, and 5d wires
+the authenticated API client + `/users/sync` on sign-in success.
 
-Deferred from Phase 0, still outstanding: ESLint configs for web and
-mobile. These land before CI at the end of Phase 1.
+Deferred still: ESLint configs for web and mobile (Phase 0 carryover,
+land before CI). Also deferred to eas build time: Expo splash and
+icon theming — default assets for now.
 
 Branch: phase-1/auth
 
@@ -126,3 +122,34 @@ Verified end-to-end today with a real JWT grabbed via the Clerk
 account portal (Frontend API host decoded from the publishable key).
 404 → sync 200 (INSERT) → me 200 → sync 200 (UPDATE, same id, later
 updated_at). Row confirmed in Postgres via `psql`.
+
+**Step 5a — mobile ClerkProvider + route groups + placeholders.**
+Installed `@clerk/clerk-expo` and `expo-secure-store`. Wrote a Secure
+Store-backed token cache at `src/lib/tokenCache.ts` (encrypted via iOS
+Keychain / Android Keystore — never AsyncStorage for session tokens).
+Wrapped the root layout in `<ClerkProvider>`. Replaced the Phase 0
+spinner index with an auth-state router that uses `useAuth()` and
+`<Redirect>` to send traffic to `(auth)/sign-in` or `(app)/home`.
+Split the app into two route groups: `(auth)` for public screens,
+`(app)` for protected screens, each with a layout that re-checks auth
+state as belt-and-braces. Placeholder sign-in and home screens (home
+has a sign-out button so we can flip auth state while testing later
+sub-steps).
+
+Hit one runtime error before verification: `Cannot find native module
+'ExpoCryptoAES'` when Clerk's `useSSO` loaded `expo-auth-session`,
+which loaded `expo-crypto/aes`, which tried to bind a native module
+Expo Go SDK 54 doesn't have. Root cause: Clerk's peer deps are very
+loose (`expo-crypto >=12`) and npm had satisfied them with SDK 55
+versions of the packages (`55.x`) instead of the SDK 54 versions our
+Expo Go supports (`15.x` / `7.x`). Fixed by adding explicit root
+`overrides` for `expo-crypto`, `expo-auth-session`, `expo-web-browser`,
+`expo-application`, `expo-constants`, `expo-linking` pinned to their
+SDK 54 versions, plus making those packages explicit direct deps in
+`apps/mobile/package.json`. Nuked `node_modules` + `package-lock.json`
+and reinstalled. Captured in errors.md; generalized to a rule in
+learnings.md (third time the hoist-wrong-version family has bitten
+this repo). Verified after fix: spinner → sign-in placeholder, no
+crashes.
+
+Also created `apps/mobile/README.md` — was missing since Phase 0.

@@ -1,39 +1,31 @@
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@clerk/clerk-expo';
+import { Redirect } from 'expo-router';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-// This is the home screen — file is app/index.tsx so it maps to route "/".
-// In Phase 1, this will check auth and redirect to sign-in or the real home.
+// Entry route "/". Reads Clerk auth state and redirects into the right route
+// group. While Clerk is bootstrapping (reading the token cache, refreshing),
+// isLoaded is false — we show a spinner instead of flashing either screen.
 export default function Index() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <View style={styles.container}>
         <ActivityIndicator size="large" color="#10b981" />
-        <Text style={styles.title}>Circle Accountability</Text>
-        <Text style={styles.subtitle}>Mobile app — Phase 0 shell</Text>
       </View>
-    </SafeAreaView>
-  );
+    );
+  }
+
+  // Declarative redirect — expo-router handles the navigation. No manual
+  // useEffect + router.replace dance needed.
+  return <Redirect href={isSignedIn ? '/home' : '/sign-in'} />;
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a', // slate-950
-  },
-  content: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#f8fafc', // slate-50
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#94a3b8', // slate-400
+    backgroundColor: '#0f172a',
   },
 });

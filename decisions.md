@@ -316,3 +316,30 @@ testing). That's when we'll need:
 - App Store / Play Store icons
 
 Until then, default assets are accepted and not worth a detour.
+
+---
+
+## Deferred: production Google OAuth credentials and Apple Sign-In
+*Phase 1 — step 5c*
+
+**Production Google OAuth credentials.** Clerk's dev instance uses
+Clerk's shared Google OAuth client for "Continue with Google" — no
+Google Cloud Console setup needed for development. Production will
+need our own:
+
+- Create an OAuth 2.0 client in Google Cloud Console
+- Configure the authorized redirect URIs to match Clerk's production
+  callback URL (Clerk dashboard shows the exact value once we
+  promote the instance to production)
+- Add the client ID + secret to Clerk's Google connection on the
+  production instance
+
+Right time to address: when we cut the production Clerk instance at
+deploy time. Dev shared credentials are the right path until then.
+
+**Apple Sign-In.** App Store policy requires offering Apple Sign-In
+if any third-party SSO is present. We have Google, so iOS submission
+will require us to add `expo-apple-authentication` and an Apple
+Sign-In button alongside the Google one — same Clerk SSO mechanism,
+different `strategy: 'oauth_apple'`. Doesn't apply to dev builds or
+Android. Deferred to TestFlight prep.

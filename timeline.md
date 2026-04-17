@@ -9,23 +9,28 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Phase 1 is 6 of 9 steps deep. Backend (steps 1–4) is done; on mobile,
-5a wired Clerk structurally and **5b** now has real email/password
-sign-in, sign-up with email verification, and sign-out — all working
-end-to-end on iPhone. A central theme palette lives at
-`src/lib/theme.ts`; every screen imports from it. Clerk errors
-(wrong password, breached password, bad verification code) surface
-verbatim in red under the form inputs.
+Phase 1 is 7 of 9 steps deep. Mobile auth surface is now fully
+functional — email/password sign-in, sign-up with email verification,
+sign-out, and Google OAuth via Clerk's `useSSO` hook. Tap Continue
+with Google → system browser opens → consent on Google → redirects
+back via the `circle://` URL scheme → land on /home. Same flow
+whether the Google account is new (Clerk auto-creates a user) or
+already linked (signs in to existing). Cancellation in the browser
+is silent by design.
 
-Next step: **step 5c — Google OAuth button** on both sign-in and
-sign-up via Clerk's `useSSO` hook + `expo-auth-session`. After that,
-5d wires the authenticated API client + `/users/sync` on sign-in
-success — the moment a real phone drives the backend we built in
-steps 1–4.
+Next step: **5d — authenticated API client + `/users/sync` on
+sign-in success + minimal profile screen**. This is the first time
+the mobile app talks to our Go backend: extend `src/lib/api.ts` to
+attach the Clerk session JWT, call `POST /users/sync` once after
+sign-in to materialize the local users row, and read `GET /users/me`
+on the profile screen. Also need to switch `EXPO_PUBLIC_API_URL`
+from `localhost` to your computer's LAN IP since Expo Go on a real
+device can't reach `localhost`.
 
-Deferred still: ESLint configs for web and mobile (Phase 0 carryover,
-land before CI). Also deferred to eas build time: Expo splash and
-icon theming — default assets for now.
+Deferred still: ESLint configs (Phase 0 carryover), Expo splash and
+icon theming (eas build prep), production Google Cloud OAuth
+credentials (deploy time), Apple Sign-In (App Store submission —
+required when any third-party SSO is offered).
 
 Branch: phase-1/auth
 
@@ -183,3 +188,26 @@ tested on iPhone end-to-end: sign in as the existing test user,
 sign out (session cleared from Secure Store), sign up a new user
 with a real inbox to receive the verification code, all errors
 visible.
+
+**Step 5c — Google OAuth.** Added a shared `GoogleSSOButton`
+component used by both sign-in and sign-up. It owns the Clerk
+`useSSO` hook, the `AuthSession.makeRedirectUri({ scheme: 'circle' })`
+call, and `WebBrowser.maybeCompleteAuthSession()` at module load
+(must run top-level so the OAuth round-trip can resolve when
+iOS/Android spins up a fresh JS instance to handle the redirect —
+captured in learnings.md). Outlined button styling so it visually
+defers to the primary email form button above; "G" mark via
+Ionicons (will swap to Google's official branded button before App
+Store submission).
+
+UI lays out a `─── or ───` divider between the email form and the
+Google button on both screens. Sign-up's verify stage doesn't show
+the Google button — Google flow doesn't need email verification.
+
+Verified on iPhone: Google sign-in from both screens completes the
+in-app browser round-trip and lands on /home. Cancellation (close
+the browser) is silent — no error row shown, by design. Confirmed
+in the Clerk dashboard that the test Google account appears as a
+linked external account on the Clerk user. Production Google Cloud
+OAuth credentials deferred to deploy time, and Apple Sign-In
+deferred to App Store submission (both captured in decisions.md).

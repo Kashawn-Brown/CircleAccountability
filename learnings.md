@@ -420,3 +420,46 @@ screens already does this, which is the right call.
 
 If we ever want stricter rules (rotation, history, MFA-required for
 admins, etc.), they're a Clerk dashboard setting — not app code.
+
+---
+
+## Mobile OAuth: the system-browser redirect dance
+*apps/mobile/src/components/GoogleSSOButton.tsx*
+
+Native OAuth on iOS/Android works very differently from web. There's
+no `window.location.href = 'https://...'` — the app launches a system
+browser (SafariViewController on iOS, Chrome Custom Tabs on Android),
+the user authorizes there, and the browser redirects back to the app
+via a **custom URL scheme** registered in `app.json` (ours is `circle`).
+
+Three pieces have to line up for the round-trip to work:
+
+1. **`app.json` declares the URL scheme** (`"scheme": "circle"`). The
+   OS uses this to route `circle://...` URLs back to the app.
+
+2. **`AuthSession.makeRedirectUri({ scheme: 'circle' })`** generates
+   the exact redirect URI string Clerk needs (something like
+   `circle://oauth-native-callback`). Don't hand-build it — the
+   helper handles platform-specific differences.
+
+3. **`WebBrowser.maybeCompleteAuthSession()` at module load.** This
+   one is the strangest and the easiest to get wrong. It must run at
+   the top of the file, not inside a hook or function. Reason: when
+   the redirect fires, iOS or Android may spin up a *fresh* JS
+   instance of the app to handle the URL. That instance needs to
+   know "an auth session is in progress" *before* React even starts
+   rendering — otherwise it boots cold and the original
+   `startSSOFlow` promise never resolves. Calling it at module load
+   in any file that initiates an auth session is enough.
+
+**One implication that surprises web devs:** there's no separate
+"sign in with Google" vs "sign up with Google" code path. Clerk
+returns `createdSessionId` either way — if the Google account is
+new, Clerk auto-creates a Clerk user; if it's already linked, Clerk
+signs in to the existing user. Single hook, single button, single
+result shape.
+
+**A second implication:** cancellation is silent. If the user
+dismisses the browser, `startSSOFlow` resolves with no
+`createdSessionId` and no error thrown. Treat the absence of a
+session as "user cancelled," not as failure.

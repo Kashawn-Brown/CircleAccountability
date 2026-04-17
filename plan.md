@@ -215,8 +215,8 @@ Goal: real users in a real system.
 - [ ] Clerk integration (mobile, web, Go backend) — backend done;
   mobile done (5a/5b — provider, token cache, real auth screens);
   web pending
-- [x] Signup / signin / signout flows on mobile (email/password done;
-  Google OAuth lands in 5c)
+- [x] Signup / signin / signout flows on mobile (email/password and
+  Google OAuth via Clerk SSO)
 - [x] User record creation/sync in Postgres (backend side —
   `POST /users/sync` upserts; mobile trigger in step 5d)
 - [ ] Basic profile screen

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GoogleSSOButton } from '@/components/GoogleSSOButton';
 import { colors } from '@/lib/theme';
 
 // Sign-in screen. Single-shot email + password via Clerk's useSignIn hook.
@@ -99,6 +100,14 @@ export default function SignInScreen() {
               )}
             </Pressable>
 
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <GoogleSSOButton disabled={submitting} onError={setError} />
+
             <View style={styles.footer}>
               <Text style={styles.footerText}>Don&apos;t have an account? </Text>
               <Link href="/sign-up" style={styles.footerLink}>
@@ -175,6 +184,24 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     fontWeight: '600',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   footer: {
     flexDirection: 'row',

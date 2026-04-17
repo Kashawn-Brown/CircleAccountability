@@ -58,8 +58,16 @@ app/
 
 Clerk via `@clerk/clerk-expo`. Session tokens persist in
 `expo-secure-store` (iOS Keychain / Android Keystore) — never
-`AsyncStorage`, which is not encrypted. The token cache
-implementation lives at `src/lib/tokenCache.ts`.
+`AsyncStorage`, which is not encrypted. The token cache implementation
+lives at `src/lib/tokenCache.ts`.
+
+Sign-in methods:
+- **Email + password** with email verification (Clerk's `useSignIn` /
+  `useSignUp` hooks).
+- **Continue with Google** via Clerk's `useSSO` hook + `expo-auth-
+  session`. The OAuth redirect comes back to the app through the
+  `circle://` URL scheme declared in `app.json`. The shared button
+  component lives at `src/components/GoogleSSOButton.tsx`.
 
 ## Scripts
 

@@ -20,7 +20,7 @@ type Config struct {
 // It returns an error if any required variable is missing.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:        getEnv("API_PORT", "8080"),
+		Port:        getEnv("API_PORT", "8090"),
 		Env:         getEnv("API_ENV", "development"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 	}

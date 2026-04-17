@@ -3,7 +3,9 @@
 
 .PHONY: help run build tidy migrate-up migrate-down test lint
 
-DB_URL ?= $(shell grep DATABASE_URL ../../.env.local 2>/dev/null | cut -d '=' -f2)
+# Extract DATABASE_URL from .env.local. Use `-f2-` (not `-f2`) so values
+# containing `=` (e.g. `?sslmode=disable`) don't get truncated at the first `=`.
+DB_URL ?= $(shell grep ^DATABASE_URL ../../.env.local 2>/dev/null | cut -d '=' -f2-)
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

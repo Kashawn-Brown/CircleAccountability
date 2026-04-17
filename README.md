@@ -86,8 +86,8 @@ go mod download
 ```bash
 cd apps/api
 make run
-# → Listening on :8080
-# → GET http://localhost:8080/health
+# → Listening on :8090
+# → GET http://localhost:8090/health
 ```
 
 ### Web (Next.js)

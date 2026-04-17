@@ -10,6 +10,8 @@ on the App Store and Google Play that me and others can actually use.
 ## Repo
 - Name: CircleAccountability
 - Structure: Turborepo monorepo with apps/ and packages/
+- Visibility: Public
+- Main branch is protected — never push directly to main
 
 ## Environment
 - Editor: Cursor
@@ -64,7 +66,7 @@ way around. Both iOS and Android are supported targets.
 - Both iOS and Android are supported targets
 
 ## Reference documents
-- docs/Circle_Accountability.docx — full product planning document,
+- docs/Circle Accountability.docx — full product planning document,
   read this to understand the product vision, data model, user stories,
   MVP scope, and all key decisions made before development began
 - docs/3.zip — Figma design export, contains all screen designs,
@@ -108,10 +110,52 @@ we are about to build and what we are explicitly not building yet. If
 something starts expanding in scope mid-build, stop and check with me
 before continuing. Do not solve problems we do not have yet.
 
+## Branching
+Always work on a feature branch, never directly on main. Main is
+protected and only receives merges via Pull Requests on GitHub.
+
+Branch naming convention: phase-N/short-description
+Examples:
+  phase-0/skeleton
+  phase-1/auth
+  phase-1/user-profile
+  phase-2/circle-creation
+  phase-2/circle-listing
+
+At the start of every session, confirm what branch we are on before
+writing any code. If we are on main, stop and tell me — I will create
+the correct branch first in GitHub Desktop before continuing.
+
+When a phase is large enough to split, use multiple branches within
+that phase. Split when the work is genuinely independent, not by default.
+
+Never push directly to main. Never suggest force pushing. All changes
+to main go through a PR. I handle branching and merging myself in
+GitHub Desktop.
+
+## CI/CD
+Not set up yet — placeholder for Phase 1 completion. When added, it
+will be a GitHub Actions workflow that runs on every PR targeting main:
+- go vet and Go tests
+- TypeScript typecheck
+- Lint
+
+Keep this in mind when structuring code so nothing makes CI harder to
+add later.
+
 ## Commits
 One phase is not one commit. Commit at every logical checkpoint — each
-meaningful, working, standalone unit of work gets its own commit. Commits
-should tell the story of how something was built, not just that it was.
+meaningful, working, standalone unit of work gets its own commit.
+Commits should tell the story of how something was built, not just
+that it was built.
+
+A commit represents working state at the moment it is made — it is not
+a retroactive narrative. If several changes were made together in one
+session and all reached working state together, commit them together.
+Do not split completed work into multiple commits after the fact just
+because the changes feel conceptually distinct. The time to split is
+during the work, by committing each logical unit as it reaches a
+working state.
 
 Format:
   type: short title describing what this commit does
@@ -123,9 +167,15 @@ Format:
 Types: feat, fix, chore, refactor, docs, migration, test
 
 Always suggest the full commit message — do not just say "you should
-commit now." The message should be ready to copy and paste into 
-GitHub Desktop. Format: one summary line, then bullet points that 
-are clear but not dense. I handle the actual commit myself.
+commit now." The message should be ready to copy and paste into
+GitHub Desktop. One summary line, then bullets that are clear but
+not dense. I handle the actual commit and push myself.
+
+Each bullet must be a single line — no line breaks mid-bullet, no soft
+wrapping inside a bullet. One clear idea per bullet. I paste the
+message directly into GitHub Desktop and wrapped bullets create
+manual cleanup. If an idea is too long to fit on one line, split it
+into multiple bullets instead.
 
 ## Code comments
 - Brief purpose comment at the top of each file stating what it does
@@ -205,9 +255,10 @@ If a session has been running long, proactively suggest a session wrap
 before context gets stale — do not wait to be asked.
 
 ## Starting every session
-Read CLAUDE.md and timeline.md before doing anything. Then confirm what
-was last completed and what the logical next step is. Wait for me to
-confirm the plan before writing any code.
+Read CLAUDE.md and timeline.md before doing anything. Confirm what
+branch we are on. Then confirm what was last completed and what the
+logical next step is. Wait for me to confirm the plan before writing
+any code.
 
 ## Wrapping a session
 When asked to wrap up, or when the session has been running long:

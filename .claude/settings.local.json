@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -p \"docs/Circle Accountability.docx\" word/document.xml)",
+      "Bash(python -c \"import sys, re; content = sys.stdin.read\\(\\); text = re.sub\\(r'<[^>]+>', '\\\\n', content\\); text = re.sub\\(r'\\\\n+', '\\\\n', text\\); print\\(text\\)\")",
+      "Bash(docker compose up *)",
+      "Bash(docker version *)",
+      "Bash(docker exec *)",
+      "Bash(migrate -version)",
+      "Bash(make migrate-up *)"
+    ]
+  }
+}

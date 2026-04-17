@@ -21,5 +21,9 @@
   },
   "dependencies": {
     "make": "^0.8.1"
+  },
+  "overrides": {
+    "@types/react": "19.1.17",
+    "react": "19.1.0"
   }
 }

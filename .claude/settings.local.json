@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -p \"docs/Circle Accountability.docx\" word/document.xml)",
+      "Bash(python -c \"import sys, re; content = sys.stdin.read\\(\\); text = re.sub\\(r'<[^>]+>', '\\\\n', content\\); text = re.sub\\(r'\\\\n+', '\\\\n', text\\); print\\(text\\)\")",
+      "Bash(docker compose up *)",
+      "Bash(docker version *)",
+      "Bash(docker exec *)",
+      "Bash(migrate -version)",
+      "Bash(make migrate-up *)",
+      "Bash(npm run *)",
+      "Bash(netstat -ano -p TCP)",
+      "Bash(npx expo *)",
+      "Bash(rm -f package-lock.json)",
+      "Bash(rm -rf node_modules apps/mobile/node_modules apps/web/node_modules packages/types/node_modules)",
+      "Bash(npm install *)",
+      "Bash(make lint *)"
+    ]
+  }
+}

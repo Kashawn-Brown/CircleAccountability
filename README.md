@@ -86,8 +86,8 @@ go mod download
 ```bash
 cd apps/api
 make run
-# → Listening on :8080
-# → GET http://localhost:8080/health
+# → Listening on :8090
+# → GET http://localhost:8090/health
 ```
 
 ### Web (Next.js)
@@ -129,7 +129,7 @@ npm run format   # Format all files with Prettier
 
 | Layer | Technology |
 |-------|-----------|
-| Mobile | Expo SDK 53 + React Native 0.76 + TypeScript |
+| Mobile | Expo SDK 54 + React Native 0.81 + TypeScript |
 | Web | Next.js 15 App Router + TypeScript |
 | API | Go 1.23 + chi router |
 | Database | PostgreSQL 17 |

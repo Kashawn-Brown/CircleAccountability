@@ -202,8 +202,8 @@ Goal: clean foundation before any feature work.
 - [x] Mobile boots locally (`npx expo start`, renders on iPhone via Expo Go)
 - [x] API connects to local Postgres
 - [x] golang-migrate works (`make migrate-up`)
-- [ ] Lint/format baseline working across apps (Go `go vet` works; ESLint
-  configs for web + mobile deferred to Phase 1 before CI)
+- [x] Lint/format baseline working across apps (Go `go vet` works;
+  ESLint flat configs added for web and mobile in Phase 1 step 7)
 - [x] Root README accurate against real setup
 
 Output: all apps boot locally, API connects to DB, no real features
@@ -238,8 +238,9 @@ Goal: real users in a real system.
 - [x] Auth middleware (backend)
 - [x] User table migration
 - [x] Web catches up with mobile (6a/6b/6c done)
-- [ ] CI/CD baseline added (GitHub Actions: go vet, Go tests, TS
-  typecheck, lint)
+- [x] CI/CD baseline added (GitHub Actions: `go vet`, `go test`,
+  `go mod tidy` drift check, TS typecheck and ESLint across all
+  workspaces — runs on every PR to main)
 
 ### Phase 2 — Circle creation + listing
 Goal: users can create circles and see them.

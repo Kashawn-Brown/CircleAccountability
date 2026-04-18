@@ -76,7 +76,7 @@ npm run start       # expo start
 npm run ios         # expo start --ios
 npm run android     # expo start --android
 npm run typecheck   # tsc --noEmit
-npm run lint        # eslint (config deferred until Phase 1 CI)
+npm run lint        # eslint (flat config extending eslint-config-expo)
 ```
 
 ## A note on peer dependencies

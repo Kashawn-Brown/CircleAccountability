@@ -106,7 +106,7 @@ npm run dev          # next dev --port 3000
 npm run build        # next build
 npm run start        # next start
 npm run typecheck    # tsc --noEmit
-npm run lint         # next lint (ESLint config deferred until Phase 1 CI)
+npm run lint         # eslint (flat config extending next/core-web-vitals + next/typescript)
 ```
 
 ## Tailwind v4 note

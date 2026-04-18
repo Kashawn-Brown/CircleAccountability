@@ -9,24 +9,23 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Phase 1 feature work is complete on both platforms. Web now matches
-mobile end-to-end: sign in (email/password or Google OAuth) →
-`(app)/layout` fires `POST /users/sync` in the background → local
-Postgres row materialized → `/profile` reads `GET /users/me` and
-renders the mirrored user. Verified in Chrome today with the same
-test accounts used on mobile.
+**Phase 1 is complete.** Auth + user foundation works on API, mobile,
+and web, and every PR now runs through a GitHub Actions CI workflow
+(`.github/workflows/ci.yml`) that exercises `go vet`, `go test`,
+a `go mod tidy` drift check, workspace-wide TS typecheck, and ESLint
+on web + mobile.
 
 Known cosmetic gap on web: the `/home` and `/profile` screens are
 narrow (phone-width) because they were built as mobile-style cards
 while Figma has no web auth/home designs. Left as-is — Figma wire-up
 for web screens comes when Phase 2's real home lands.
 
-Next: **step 7 — CI/CD baseline**. GitHub Actions workflow that
-runs on every PR to main: `go vet`, Go tests, TS typecheck across
-all workspaces, and lint. ESLint configs for web and mobile still
-need writing before lint can run — fold in before the workflow so
-lint has something to check. After that, Phase 1 closes and we
-start Phase 2 (circle creation + listing).
+Next: **Phase 2 — circle creation + listing**. First real product
+entity lands. Scope includes the `circles` and `circle_members`
+migrations, create/list/get endpoints with validation and ownership
+checks, owner role assignment on creation, a create-circle flow on
+mobile, a home screen that lists real circles instead of the
+placeholder, and a circle detail shell. Web catches up after mobile.
 
 Deferred still: Expo splash and icon theming (eas build prep),
 production Google Cloud OAuth credentials (deploy time), Apple
@@ -345,3 +344,44 @@ Google → same flow, row confirmed in Postgres. Web `/home` and
 `/profile` are narrow (phone-width) because there's no web Figma
 to size against — deferred to Phase 2 when the real home screen
 arrives.
+
+**Step 7 — CI/CD baseline + ESLint configs.** Phase 1 closer.
+Added ESLint flat configs for both apps: `apps/web/eslint.config.mjs`
+extends `next/core-web-vitals` + `next/typescript` via `FlatCompat`;
+`apps/mobile/eslint.config.mjs` imports from `eslint-config-expo/flat`.
+Upgraded web from no ESLint at all to `eslint@^9` +
+`eslint-config-next@^15.5.15` (bumped from 15.2.9 because the 15.2
+release's `parser.js` required `next/dist/compiled/babel/eslint-parser`,
+a path that no longer exists in Next 15.2.9's runtime). Upgraded
+mobile from ESLint 8.57 to 9 to match, and pinned `eslint: ^9.39.4`
+in the root `overrides` — without the override, `eslint-config-expo`
+resolves `require('eslint/config')` against the hoisted root copy of
+ESLint, which was 8.57 and doesn't export that subpath. Fourth time
+the hoist-wrong-version family has bitten this repo; the rule in
+`learnings.md` applied straight through.
+
+Also updated `apps/web/postcss.config.mjs` and
+`apps/web/eslint.config.mjs` to bind their default export to a named
+`const` first — Next's ESLint rules flag anonymous inline default
+exports as a warning.
+
+Added `.github/workflows/ci.yml` with two parallel jobs:
+- **api** — checkout, setup-go 1.24 with `go.sum` caching, `go mod
+  tidy` drift check (`git diff --exit-code` after tidy), `go vet`,
+  `go test ./...`. Tidy drift is a real CI concern — a missing
+  `go.sum` entry only shows up when CI builds against a cold cache,
+  and catching it in the drift check is cheaper than a mysterious
+  build failure.
+- **node** — checkout, setup-node 20 with npm cache, `npm ci` at
+  root, `npm run typecheck --workspaces --if-present` (runs in web,
+  mobile, and types), then `npm run lint --workspaces --if-present`
+  (runs in web and mobile; types has no lint script).
+
+Triggers: pull_request targeting main, plus push to main as a
+sanity net (so if something sneaks past a PR it still surfaces on
+the default branch).
+
+Ran every command locally before wiring the workflow so CI should
+pass clean on first run. Root README now documents what CI checks
+and how to reproduce it locally. Phase 1 is officially closed —
+Phase 2 starts next session.

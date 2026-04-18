@@ -97,6 +97,35 @@ it built. At every step:
   is completely fine and expected, do not push to keep building if I
   am still working through understanding something
 
+## Review breaks and notes/
+Between phases (and occasionally mid-phase) I will take a read-only
+review break to deepen my understanding of what was built before moving
+on. This is a known, recurring pattern — not an interruption.
+
+Rules when in review mode:
+- No edits to tracked files (code, docs, configs). The one carve-out
+  is the notes files described below.
+- Go at my pace. I will say "next" when I'm ready for the next section.
+- Explain via real file paths and line numbers so I can follow along
+  in the editor.
+- Draw Spring Boot / TypeScript analogies where they clarify Go — I
+  am new to Go but familiar at a low level with Java/Spring Boot and
+  TypeScript.
+- Collect any code suggestions that come up and surface them at the
+  end of the walkthrough, not mid-section.
+
+Notes location:
+- `notes/` at the repo root, gitignored (entry in `.gitignore`).
+- One file per topic or phase, e.g. `notes/phase-1-walkthrough.md`.
+- After each section, append a tight summary plus any follow-up
+  questions I asked and the answers. These are my personal learning
+  scaffold, not project history — they grow over time.
+
+The `notes/` folder and its `.gitignore` entry are a one-time setup
+and already established. Don't re-propose them. When normal work
+resumes after a review break, the setup change (if any) gets folded
+into a loose commit and is not worth narrating in `timeline.md`.
+
 ## Definition of done
 A piece of work is not done until:
 1. The code is written and working

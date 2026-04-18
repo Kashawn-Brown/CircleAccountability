@@ -562,3 +562,93 @@ Three things going on:
 The group layout unmounts on sign-out (because `(app)/_layout` redirects
 to `/sign-in` when `!isSignedIn`), so the ref is naturally reset
 between user sessions. No cross-user leakage to worry about.
+
+---
+
+## Next.js middleware runs before React — it can't see ClerkProvider props
+*apps/web/src/middleware.ts + apps/web/src/app/layout.tsx*
+
+`clerkMiddleware` runs in Next.js's Edge runtime on every request
+before any React tree is constructed. That means it has no access to
+the `<ClerkProvider>` props passed in `app/layout.tsx`. Setting
+`signInUrl="/sign-in"` on the provider configures what Clerk's
+*React-side* helpers do (sign-in links, redirect-after-action URLs,
+etc.), but it does not configure `auth.protect()` in middleware —
+and `auth.protect()` is what fires when an unauthenticated request
+hits a protected route.
+
+Consequence: if only the provider props are set, middleware falls
+back to the Clerk dashboard's configured "Sign-in URL" for its
+redirect target. For a dev instance, that defaults to Clerk's
+hosted `accounts.dev` portal — so signed-out visits to `/home`
+redirect away from localhost entirely. Captured in `errors.md`
+from step 6a.
+
+The fix is environment variables:
+
+```
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+```
+
+Clerk reads these from the environment in both middleware and
+prebuilt components. One pair of vars covers both surfaces and
+stays consistent. The provider props stay set as well — redundant
+with the env vars, but explicit and they cover the React-rendered
+side.
+
+**General rule for Next.js middleware config:** anything middleware
+needs has to come from the environment, a route pattern (e.g.
+`createRouteMatcher(['/home(.*)'])`), or middleware-specific
+options. React props, Context providers, and client-side state
+don't exist yet when middleware runs.
+
+---
+
+## Clerk theming: `variables` isn't enough; `elements` is where the real work happens
+*apps/web/src/lib/clerkAppearance.ts*
+
+Clerk's prebuilt components (`<SignIn>`, `<SignUp>`, `<UserProfile>`)
+are themed via an `Appearance` object with three knobs:
+
+- **`baseTheme`** — a starter kit from `@clerk/themes` (e.g. `dark`).
+  Gives you a palette + element styles that are reasonable defaults.
+- **`variables`** — design tokens (`colorPrimary`, `borderRadius`,
+  `fontFamily`, etc.) that some internal styles pick up.
+- **`elements`** — per-slot Tailwind class overrides for every
+  structural piece of the component (card, header, buttons, form
+  fields, dividers, OTP cells, etc.).
+
+The trap: `baseTheme: dark` + `variables` alone looks like enough.
+It is not. The dark base ships explicit styles on most elements,
+and those styles win on conflicts with `variables` — so the card
+will use the dark theme's card styling regardless of what
+`colorPrimary` says. To actually match a palette you have to
+override each structural slot in `elements`, which for a full
+sign-in form means ~25 named slots.
+
+Which slots matter for sign-in/sign-up (what we learned by seeing
+each one break in step 6b):
+
+- `rootBox` / `cardBox` / `card` — outer container and the card
+  itself. Without `card` set, background and padding are wrong.
+- `header` / `headerTitle` / `headerSubtitle` — heading visibility
+  depends on explicit text colors.
+- `socialButtons` / `socialButtonsBlockButton` /
+  `socialButtonsBlockButtonText` — Google button coloring and text.
+- `dividerRow` / `dividerLine` / `dividerText` — the "── or ──"
+  between OAuth and email form.
+- `formFieldLabel` / `formFieldInput` / `formFieldErrorText` /
+  `formFieldHintText` / `formFieldInputShowPasswordButton` — every
+  part of the input block.
+- `formButtonPrimary` — primary submit button.
+- `footer` / `footerAction` / `footerActionText` /
+  `footerActionLink` — "Don't have an account? Sign up" strip.
+- `alertText` — error alerts.
+- `identityPreviewText` / `identityPreviewEditButton` — shown on
+  verification stage ("alice@example.com  Edit").
+- `otpCodeFieldInput` — email verification code cells.
+
+Takeaway: plan for per-element theming from the start when using
+Clerk prebuilts. Variables are a nice convenience but don't carry
+the structural look.

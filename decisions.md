@@ -343,3 +343,59 @@ will require us to add `expo-apple-authentication` and an Apple
 Sign-In button alongside the Google one — same Clerk SSO mechanism,
 different `strategy: 'oauth_apple'`. Doesn't apply to dev builds or
 Android. Deferred to TestFlight prep.
+
+---
+
+## Web uses Clerk's prebuilt `<SignIn>` / `<SignUp>` (not hand-rolled)
+*Phase 1 — step 6b*
+
+Mobile has hand-rolled sign-in / sign-up screens built on Clerk's
+`useSignIn` / `useSignUp` hooks so the UI matches the Figma design
+pixel-for-pixel and uses our `GoogleSSOButton` component. Web takes
+the opposite path: Clerk's prebuilt `<SignIn>` and `<SignUp>`
+components, themed to our slate + emerald palette via a shared
+`Appearance` config at `apps/web/src/lib/clerkAppearance.ts`.
+
+Reason: the Figma export does not include web sign-in / sign-up
+screens. There is no design to match, so "build to match Figma" —
+mobile's reason for going hand-rolled — doesn't apply. Prebuilts
+give us email/password, Google OAuth, email verification, forgotten
+password flow, and all the auth sub-states (factor-two, verify-
+email-address, SSO callback) for free, on a catch-all `[[...rest]]`
+segment. Swapping to hand-rolled later is cheap if a web auth
+design ever lands — the route, middleware, and env var config all
+stay the same.
+
+Theming is applied via `baseTheme: dark` plus explicit
+`elements: { ... }` Tailwind class overrides. Variables alone are
+not enough: `@clerk/themes`'s `dark` sets element-level styles that
+win on conflicts, so structural overrides (card border, header
+text, social button, form field, divider, footer, OTP cells) have
+to be named explicitly.
+
+---
+
+## Clerk middleware redirect URLs come from env, not ClerkProvider props
+*Phase 1 — step 6a*
+
+`clerkMiddleware` runs in Next.js's Edge runtime before any React
+renders, so `auth.protect()` cannot read the `signInUrl` /
+`signUpUrl` props passed to `<ClerkProvider>`. Without explicit
+configuration, the middleware falls back to Clerk's hosted
+`accounts.dev` portal — so a signed-out visit to `/home` redirects
+to `https://<slug>.accounts.dev/sign-in?redirect_url=...` instead of
+our local `/sign-in` route.
+
+Decision: set `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and
+`NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` in `.env.local` (and
+documented in `.env.example`). Clerk reads these env vars from both
+middleware and prebuilt components, so one source of truth covers
+both surfaces. The `signInUrl` / `signUpUrl` props on
+`<ClerkProvider>` stay as well — redundant but explicit, and they
+cover the React-rendered side where env vars aren't always
+guaranteed to be inlined for client components.
+
+Reason: env vars are the only knob middleware reads. Keeping them
+in `.env.example` means a fresh clone gets working redirects without
+having to re-diagnose the hosted-portal redirect (the actual bug we
+hit during 6a verification — see `errors.md`).

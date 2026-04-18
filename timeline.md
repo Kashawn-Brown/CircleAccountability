@@ -9,23 +9,24 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Phase 1 mobile is complete. Full auth surface plus first real
-end-to-end round-trip to the Go API: sign in (email/password or
-Google SSO) → `(app)/_layout` fires `POST /users/sync` in the
-background → local Postgres row materialized → profile screen reads
-`GET /users/me` and renders the mirrored user. Both paths verified
-on iPhone today; DB shows one email/password row and one Google
-row with the expected display names.
+Web has caught up with mobile on Clerk surface area. Step 6a/6b done:
+`@clerk/nextjs` installed, root layout wrapped in `<ClerkProvider>`,
+`clerkMiddleware` protecting `/home` and `/profile`, `(auth)` and
+`(app)` route groups mirroring mobile's layout, and Clerk's prebuilt
+`<SignIn>`/`<SignUp>` themed to the slate + emerald palette via a
+shared `clerkAppearance` object. Sign-in (email/password and Google
+OAuth), sign-up with email verification, and sign-out all verified in
+Chrome end-to-end.
 
-Next step: **step 6 — web catches up with mobile**. Per the
-mobile-first rule in CLAUDE.md, web follows. Scope: install
-`@clerk/nextjs`, wrap the web app in `<ClerkProvider>`, add sign-in
-and sign-up pages, wire `src/lib/api.ts` to attach the Clerk JWT,
-trigger `/users/sync` after sign-in, and add a minimal
-profile page that reads `/users/me`. After that, step 7 is the CI/CD
-baseline (GitHub Actions: go vet + Go tests + TS typecheck + lint
-on every PR to main). ESLint configs for web and mobile still
-pending — can fold in before CI so lint has something to run.
+Next: **step 6c — authenticated API client on web**. Scope:
+extend `apps/web/src/lib/api.ts` with `setTokenGetter` mirroring
+mobile, bind it from a client component under `<ClerkProvider>` via
+`useAuth().getToken`, add an `(app)/layout.tsx` that fires
+`POST /users/sync` fire-and-forget, and wire `/profile` to
+`GET /users/me`. After that, step 7 is the CI/CD baseline (GitHub
+Actions: go vet + Go tests + TS typecheck + lint on every PR to main).
+ESLint configs for web and mobile still pending — can fold in before
+CI so lint has something to run.
 
 Deferred still: Expo splash and icon theming (eas build prep),
 production Google Cloud OAuth credentials (deploy time), Apple
@@ -257,3 +258,54 @@ End-to-end verified on iPhone: sign in with existing email/password
 member-since date. Sign out, sign in with Google as a different
 user → new row inserted (confirmed via `psql`) → profile shows the
 Google account's email and "Kashawn Brown" as display name.
+
+**Step 6a/6b — web Clerk integration + themed prebuilt forms.**
+Installed `@clerk/nextjs` (v7.2.3) and `@clerk/themes` (v2.4.57);
+bumped `next` 15.2.1 → 15.2.9 to satisfy Clerk's `^15.2.8` peer.
+Wrapped the root layout in `<ClerkProvider>` with explicit
+`signInUrl`/`signUpUrl` + fallback redirect URLs. Added
+`src/middleware.ts` using `clerkMiddleware` + `createRouteMatcher`
+to protect `/home(.*)` and `/profile(.*)`. Restructured `app/` into
+`(auth)` and `(app)` route groups mirroring mobile; root
+`page.tsx` is now a server component that reads `auth()` and
+`redirect()`s to `/home` or `/sign-in`.
+
+Auth pages use Clerk's **prebuilt `<SignIn>` and `<SignUp>`**
+components on `[[...rest]]` catch-all segments so Clerk can navigate
+internally to `/sign-in/factor-one`, `/sign-up/verify-email-address`,
+etc. without us hand-wiring sub-routes. Decision to use prebuilts
+rather than match Figma (as mobile does): Figma's export has no
+auth screens, so there's no design to match — prebuilts themed to
+our palette is the right call.
+
+Theming lives in `src/lib/clerkAppearance.ts` — a shared
+`Appearance` config with Clerk's `dark` baseTheme as a starting
+point plus explicit Tailwind class overrides on every structural
+element (card, header, social buttons, form fields, dividers,
+footer, alerts, identity preview, OTP cells). First pass used only
+`variables` and inherited everything else from `dark` — that wasn't
+enough: the card had no visible edges, heading/subtitle were nearly
+invisible, inputs were jarring white. Dark theme's element-level
+styles win on conflicts, so element class overrides are what
+actually take effect.
+
+Hit one middleware gotcha during verification: `/home` redirected
+to `https://emerging-shad-23.accounts.dev/sign-in` (Clerk's hosted
+portal) instead of our local `/sign-in`. Root cause: middleware
+runs before React, so `auth.protect()` doesn't read the
+`<ClerkProvider>` `signInUrl` prop. The middleware reads
+`NEXT_PUBLIC_CLERK_SIGN_IN_URL` from the environment instead.
+Documented both `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and
+`NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` in `.env.example`;
+added them to `.env.local` and fixed.
+
+Also tightened sign-out UX: `<SignOutButton>` without an explicit
+`redirectUrl` defaults to `/`, and the root page's server-side
+redirect doesn't fire cleanly through client-side navigation (the
+RSC response cached for the signed-in state). Added
+`redirectUrl="/sign-in"` on the button so sign-out lands directly
+on the sign-in page without a manual refresh.
+
+Apps/web now has a proper `README.md` covering setup, routing, auth,
+env vars, and the Tailwind v4 `@source` footgun — was missing
+entirely until now.

@@ -256,3 +256,69 @@ and does refresh on its own schedule, but a long-lived dev process can
 drift far enough that keys rotate out from under it. In production on
 Cloud Run, instances are short-lived enough that this is unlikely to
 bite. Worth revisiting before we ship if we see any recurrence.
+
+---
+
+### Protected routes redirected to Clerk's hosted portal instead of our /sign-in
+*Phase 1 — step 6a*
+
+After wiring `clerkMiddleware` and `<ClerkProvider>` in the web app
+with `signInUrl="/sign-in"` passed as a prop, visiting `/home` while
+signed out redirected to
+`https://emerging-shad-23.accounts.dev/sign-in?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fhome`
+— Clerk's hosted accounts.dev portal — instead of our local
+`/sign-in` page. The `(auth)` routes themselves rendered fine; only
+`auth.protect()`-triggered redirects from middleware went to the
+wrong place.
+
+Root cause: `clerkMiddleware` runs in Next.js's Edge runtime before
+React renders anything. The `signInUrl` / `signUpUrl` props on
+`<ClerkProvider>` are React-tree config — middleware cannot see
+them. Without explicit configuration, `auth.protect()` falls back to
+the Clerk dashboard's "Sign-in URL" setting, which for a dev
+instance defaults to the hosted `accounts.dev` portal.
+
+Fix: add `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and
+`NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` to `apps/web/.env.local`.
+Clerk reads these from the environment in both middleware and
+prebuilt components, so one pair of vars covers both the redirect
+target for `auth.protect()` and the internal navigation links
+inside `<SignIn>` / `<SignUp>`. Documented in `.env.example` so a
+fresh clone gets working redirects without having to rediscover this.
+
+---
+
+### Clerk prebuilt styling broke on first pass (variables alone)
+*Phase 1 — step 6b*
+
+First version of `apps/web/src/lib/clerkAppearance.ts` set only
+`baseTheme: dark` and a `variables` block (colorPrimary, colorDanger,
+borderRadius, fontFamily). Opening `/sign-in` showed a broken card:
+heading and subtitle nearly invisible against the card background,
+the Google button dark with faded text (neither Google-branded nor
+a properly themed dark button), no visible card border or shadow,
+email input pure white against the dark card, and cramped spacing
+throughout.
+
+Root cause: `@clerk/themes`'s `dark` base ships element-level styles
+that win on conflicts with `variables` alone. The variables
+customize some tokens but don't override Clerk's own element styling
+— so the card, inputs, header text, etc. all use whatever the dark
+theme ships, which doesn't match our slate + emerald palette.
+
+Fix: rewrite `clerkAppearance.ts` with an explicit `elements: { ... }`
+map covering every structural slot — `rootBox`, `cardBox`, `card`,
+`header`, `headerTitle`, `headerSubtitle`, `socialButtons`,
+`socialButtonsBlockButton`, `socialButtonsBlockButtonText`,
+`dividerRow`, `dividerLine`, `dividerText`, `formFieldLabel`,
+`formFieldInput`, `formFieldInputShowPasswordButton`,
+`formFieldErrorText`, `formFieldHintText`, `formButtonPrimary`,
+`footer`, `footerAction`, `footerActionText`, `footerActionLink`,
+`alertText`, `identityPreviewText`, `identityPreviewEditButton`,
+`otpCodeFieldInput`. Each slot gets Tailwind classes that match the
+mobile palette (slate-900 card on slate-800 inputs, emerald-600
+primary, slate-700 borders, emerald accent links).
+
+Takeaway: when theming Clerk prebuilts, expect to need element
+classes. `variables` + `baseTheme` are a starting point, not a
+complete theming solution.

@@ -213,23 +213,30 @@ yet. No deep infra work.
 Goal: real users in a real system.
 
 - [ ] Clerk integration (mobile, web, Go backend) — backend done;
-  mobile done (5a/5b/5c/5d — provider, token cache, real auth
-  screens, authenticated API client + sync + profile); web pending
+  mobile done (5a/5b/5c/5d); web 6a/6b done (provider, middleware,
+  themed prebuilt sign-in/up); 6c pending (authenticated API client
+  + sync + profile)
 - [x] Signup / signin / signout flows on mobile (email/password and
   Google OAuth via Clerk SSO)
+- [x] Signup / signin / signout flows on web (Clerk prebuilt
+  `<SignIn>`/`<SignUp>` themed to the slate + emerald palette;
+  Google OAuth included automatically)
 - [x] User record creation/sync in Postgres (backend
   `POST /users/sync` upserts, mobile `(app)/_layout` fires it as
-  fire-and-forget on sign-in)
+  fire-and-forget on sign-in; web sync pending in 6c)
 - [x] Basic profile screen (mobile — `/profile` reads
-  `GET /users/me` with loading / error-retry / fields layout)
+  `GET /users/me` with loading / error-retry / fields layout;
+  web profile pending in 6c)
 - [x] Protected routes/screens (mobile — `(auth)` and `(app)` route
-  groups with auth-state-aware layouts)
+  groups with auth-state-aware layouts; web — `clerkMiddleware` +
+  `auth.protect()` on `/home` and `/profile`)
 - [x] Session handling across clients (mobile — Secure Store token
-  cache + lazy `getToken` injection into API client; web pending)
+  cache + lazy `getToken` injection into API client; web — Clerk
+  cookie sessions handled by middleware/provider automatically)
 - [x] /users endpoints (backend)
 - [x] Auth middleware (backend)
 - [x] User table migration
-- [ ] Web catches up with mobile
+- [ ] Web catches up with mobile — 6a/6b done, 6c pending
 - [ ] CI/CD baseline added (GitHub Actions: go vet, Go tests, TS
   typecheck, lint)
 

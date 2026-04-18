@@ -122,6 +122,25 @@ belongs, their role, their status, and any per-member configuration.
 - source (manual for MVP)
 - createdAt, updatedAt
 
+**CirclePeriod** — immutable snapshot of a closed cadence period.
+- id, circleId
+- periodKey (deterministic string — e.g. `2026-04-18` daily,
+  `2026-W16` weekly)
+- startsAt, endsAt, closedAt
+- status (open, completed, missed)
+- aggregatedValue — total group progress at close
+- targetValue — target in effect at close (snapshotted because circle
+  rules can change)
+- createdAt, updatedAt
+- Unique (circleId, periodKey)
+
+Written lazily: on check-in writes and circle reads, any past open
+periods are detected and closed into a row. Immutable once closedAt is
+set. Per-member breakdowns stay computed from CheckIn rows (via
+countsTowardPeriodKey) — not denormalized on the period. UI label
+will be "History" / "Past weeks" or similar — do not hard-code
+"Period" into user-facing copy.
+
 **CheckInAttachment** — optional photo proof (modeled for later, not MVP).
 - id, checkInId, fileUrl, mimeType, createdAt
 
@@ -131,15 +150,16 @@ belongs, their role, their status, and any per-member configuration.
 labels. Computed from circle rules, active members, current period,
 and member check-ins.
 
-**Period / Cycle** — active window a circle is tracking against.
-Computed from cadence + check-in timestamp. No CirclePeriod table
-unless history, summaries, or performance force it later.
+**Active Period** — the currently open window a circle is tracking
+against. Computed from cadence + now(). Once it ends, it is closed
+into a CirclePeriod row (see Core entities).
 
 ### Relationships
 - User 1→many CircleMember
 - Circle 1→many CircleMember
 - Circle 1→many Invitation
 - Circle 1→many CheckIn
+- Circle 1→many CirclePeriod
 - User 1→many CheckIn
 - CircleMember 1→many CheckIn
 - CheckIn 1→many CheckInAttachment (effectively 0–1 in MVP)
@@ -164,6 +184,7 @@ health integrations, completion celebrations, alternate ring modes.
 - Metric support (count, duration, amount)
 - Note-based check-ins
 - Progress calculation
+- CirclePeriod snapshots on close (lazy write)
 - Shared ring dashboard
 - Member progress/history view
 
@@ -173,7 +194,10 @@ health integrations, completion celebrations, alternate ring modes.
 - Group chat / feed
 - Reactions / nudges
 - Templates (Gym Circle, Study Circle, etc.)
+- Circle history view (past periods dashboard — data foundation ships
+  via CirclePeriod in Phase 4; the UI does not)
 - Streaks / grace days
+- Overall completion percentage display
 - Apple Health / Google Fit
 - Completion celebrations
 - Weighted slices, pooled goals, advanced ring modes
@@ -271,13 +295,16 @@ Goal: the actual product loop works.
 
 - [ ] Check-in creation endpoint (count / duration / amount)
 - [ ] Period calculation logic
+- [ ] CirclePeriod migration + model
+- [ ] Lazy close-of-period logic (snapshot row written when a past open
+  period is detected on check-in writes or circle reads)
 - [ ] Per-member progress calculation
 - [ ] Circle completion calculation
 - [ ] On-track / behind logic
 - [ ] Ring data response for UI
 - [ ] Check-in screen (mobile)
 - [ ] Updated dashboard with ring v1
-- [ ] Tests: progress math, period/cadence edge cases, target overrides
+- [ ] Tests: progress math, period/cadence edge cases, target overrides, period close correctness, lazy-close idempotency
 - [ ] Load tests in tests/load/ for check-in + dashboard endpoints
 - [ ] Web catches up
 

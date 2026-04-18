@@ -375,6 +375,55 @@ to be named explicitly.
 
 ---
 
+## CirclePeriod table with lazy close for circle history
+*Phase 2 planning / MVP scope (lands Phase 4)*
+
+Every closed cadence period for a circle is persisted as an immutable
+`CirclePeriod` row (id, circleId, periodKey, startsAt, endsAt,
+closedAt, status, aggregatedValue, targetValue — unique on
+(circleId, periodKey)). The table lands in Phase 4 alongside the
+progress engine. The MVP does not ship a history viewing UI, streak
+display, or overall completion-percentage surfacing — those are
+excluded from MVP and derive cheaply from the table whenever they
+arrive post-MVP.
+
+Closing is lazy, not scheduled: on check-in writes and circle reads,
+any past open periods that have ended get closed into rows. No
+background scheduler, no cron, no goroutine ticker. Per-member
+historical progress stays computed from `CheckIn` rows via
+`countsTowardPeriodKey` — not denormalized onto the period.
+
+Reason: the data foundation for history has to exist before check-ins
+start landing, or early periods won't have authoritative snapshots
+(targets can change, memberships can shift, late edits can land —
+without a frozen row, "did we complete Monday?" is unanswerable).
+Putting the table in MVP solves that. Leaving the viewing UI out
+keeps MVP scope tight — the ruthless MVP loop (create circle, invite,
+check in, see the ring) doesn't need history to be proven. Lazy
+close avoids standing up a scheduler this early, which is real infra
+(Cloud Run cron, retry semantics, clock skew) not worth paying for
+in Phase 4.
+
+Trade-offs:
+
+- **Lazy close vs. scheduled close.** Lazy means a past period stays
+  open in the DB until something triggers it shut. Acceptable because
+  the `closedAt` column still records real close time when it
+  happens, reads always compute the derived "should be closed" state
+  for display, and late check-ins for an already-closed period can
+  be rejected at the handler layer without needing scheduler infra.
+- **Snapshotting `targetValue` into the period row.** Circle rules
+  can change after a period has passed. Storing the target in effect
+  at close means history renders correctly after a rule edit, without
+  needing a separate circle-rules audit trail.
+- **Deriving per-member breakdowns from `CheckIn`** instead of
+  denormalizing onto `CirclePeriod`. Keeps the period row small and
+  avoids a second write path. The query cost (one join on
+  `countsTowardPeriodKey`) is fine at MVP scale; revisit if it shows
+  up hot.
+
+---
+
 ## Clerk middleware redirect URLs come from env, not ClerkProvider props
 *Phase 1 — step 6a*
 

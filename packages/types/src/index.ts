@@ -6,13 +6,16 @@
 
 // --- Users ---
 
+// Shape matches the Go response in apps/api/internal/repo/users.go.
+// Nullable columns (username, avatarUrl) use `omitempty` on the backend,
+// so they're absent from the JSON when null — modeled here as optional.
 export interface User {
   id: string;
+  clerkUserId: string;
   email: string;
   displayName: string;
-  username: string;
-  phoneNumber: string | null;
-  avatarUrl: string | null;
+  username?: string;
+  avatarUrl?: string;
   createdAt: string; // ISO 8601
   updatedAt: string;
 }

@@ -181,3 +181,144 @@ it without deleting `package-lock.json` + all `node_modules` did
 nothing — the lockfile persisted the old resolutions. Had to nuke
 both and `npm install` from scratch before the overrides actually
 took effect.
+
+---
+
+### Clerk's loose peer deps pulled SDK 55 expo-* packages into an SDK 54 app
+*Phase 1 — step 5a*
+
+Adding `@clerk/clerk-expo` to the mobile app made Expo Go throw
+`Cannot find native module 'ExpoCryptoAES'` at module load. Import
+chain: `@clerk/clerk-expo` → `useSSO` → `expo-auth-session` →
+`expo-crypto/aes` → `requireNativeModule('ExpoCryptoAES')`.
+
+Diagnosis: `npm ls expo-crypto expo-auth-session` showed both at
+`55.0.14` — SDK 55 versions — even though `expo@54.0.33` was installed
+and `node_modules/expo/bundledNativeModules.json` pinned them at
+`~15.0.8` / `~7.0.10` for this SDK. Expo Go SDK 54 only ships the
+native AES module that matches the SDK 54 JS version, so the SDK 55
+JS called into a function that didn't exist in the Expo Go binary.
+
+How they got installed: Clerk declares these as **very loose peer
+dependencies** (`expo-crypto >=12`, `expo-auth-session >=5`). npm
+satisfies peer deps by picking the latest compatible release, and
+`npx expo install` only pins packages you pass to it explicitly — it
+does not walk peer deps. So Clerk's peers quietly became SDK 55
+without anything shouting.
+
+Fix: added explicit pins to root `package.json` `overrides` for
+`expo-crypto ~15.0.8`, `expo-auth-session ~7.0.10`, `expo-web-browser
+~15.0.10`, `expo-application ~7.0.8`, `expo-constants ~18.0.13`,
+`expo-linking ~8.0.11`. Also made them explicit direct deps in
+`apps/mobile/package.json` so the contract is visible. Deleted
+`node_modules` and `package-lock.json` before reinstalling — overrides
+only apply on a fresh resolve.
+
+Third time the "Metro/Next/TypeScript resolve a hoisted wrong-version
+package" family has bitten this repo (after `@types/react` and `react`
+in Phase 0). Promoted to a rule: see the learnings entry on peer-dep
+overrides.
+
+---
+
+### Stale JWKS cache rejected valid Google SSO JWTs
+*Phase 1 — step 5d*
+
+After wiring `POST /users/sync` as a fire-and-forget effect in
+`(app)/_layout.tsx`, email/password sign-in worked end-to-end but
+Google SSO sign-in for a new user landed on the profile screen with
+"user not synced yet" and retry never cleared it.
+
+Diagnosis: Metro logs showed `Initial /users/sync failed: [Error:
+invalid or expired session token]` — so the sync *was* firing but the
+API was rejecting the JWT. The middleware was swallowing the
+`jwt.Verify` error behind a generic message; we added a `slog.Warn`
+in `auth.go` that logs the real error, path, and the token's first
+12 characters. Restarted the API under a claude-managed background
+process so we could read its logs.
+
+On the retry, sync returned 200 cleanly. Row got created. The problem
+was gone. The old `main.exe` had been running for hours — long enough
+that its in-memory JWKS cache (fetched on first use by the Clerk Go
+SDK) no longer contained the current signing key. Clerk rotates keys
+on its end; the SDK caches the JWKS it fetched and doesn't proactively
+re-poll. Email/password tokens happened to still be signed by a key
+already in the cache; the fresh Google SSO token got a newer key that
+wasn't cached, so verification failed.
+
+Fix: restarting the API refetches JWKS. The bug was self-healing once
+we killed the old `main.exe` and let Air rebuild. Left the improved
+error logging in place — next time this shape of failure happens we'll
+see the exact reason instead of the generic "invalid or expired" line.
+
+Future-proof note: the Clerk Go SDK handles JWKS caching transparently
+and does refresh on its own schedule, but a long-lived dev process can
+drift far enough that keys rotate out from under it. In production on
+Cloud Run, instances are short-lived enough that this is unlikely to
+bite. Worth revisiting before we ship if we see any recurrence.
+
+---
+
+### Protected routes redirected to Clerk's hosted portal instead of our /sign-in
+*Phase 1 — step 6a*
+
+After wiring `clerkMiddleware` and `<ClerkProvider>` in the web app
+with `signInUrl="/sign-in"` passed as a prop, visiting `/home` while
+signed out redirected to
+`https://emerging-shad-23.accounts.dev/sign-in?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fhome`
+— Clerk's hosted accounts.dev portal — instead of our local
+`/sign-in` page. The `(auth)` routes themselves rendered fine; only
+`auth.protect()`-triggered redirects from middleware went to the
+wrong place.
+
+Root cause: `clerkMiddleware` runs in Next.js's Edge runtime before
+React renders anything. The `signInUrl` / `signUpUrl` props on
+`<ClerkProvider>` are React-tree config — middleware cannot see
+them. Without explicit configuration, `auth.protect()` falls back to
+the Clerk dashboard's "Sign-in URL" setting, which for a dev
+instance defaults to the hosted `accounts.dev` portal.
+
+Fix: add `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and
+`NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` to `apps/web/.env.local`.
+Clerk reads these from the environment in both middleware and
+prebuilt components, so one pair of vars covers both the redirect
+target for `auth.protect()` and the internal navigation links
+inside `<SignIn>` / `<SignUp>`. Documented in `.env.example` so a
+fresh clone gets working redirects without having to rediscover this.
+
+---
+
+### Clerk prebuilt styling broke on first pass (variables alone)
+*Phase 1 — step 6b*
+
+First version of `apps/web/src/lib/clerkAppearance.ts` set only
+`baseTheme: dark` and a `variables` block (colorPrimary, colorDanger,
+borderRadius, fontFamily). Opening `/sign-in` showed a broken card:
+heading and subtitle nearly invisible against the card background,
+the Google button dark with faded text (neither Google-branded nor
+a properly themed dark button), no visible card border or shadow,
+email input pure white against the dark card, and cramped spacing
+throughout.
+
+Root cause: `@clerk/themes`'s `dark` base ships element-level styles
+that win on conflicts with `variables` alone. The variables
+customize some tokens but don't override Clerk's own element styling
+— so the card, inputs, header text, etc. all use whatever the dark
+theme ships, which doesn't match our slate + emerald palette.
+
+Fix: rewrite `clerkAppearance.ts` with an explicit `elements: { ... }`
+map covering every structural slot — `rootBox`, `cardBox`, `card`,
+`header`, `headerTitle`, `headerSubtitle`, `socialButtons`,
+`socialButtonsBlockButton`, `socialButtonsBlockButtonText`,
+`dividerRow`, `dividerLine`, `dividerText`, `formFieldLabel`,
+`formFieldInput`, `formFieldInputShowPasswordButton`,
+`formFieldErrorText`, `formFieldHintText`, `formButtonPrimary`,
+`footer`, `footerAction`, `footerActionText`, `footerActionLink`,
+`alertText`, `identityPreviewText`, `identityPreviewEditButton`,
+`otpCodeFieldInput`. Each slot gets Tailwind classes that match the
+mobile palette (slate-900 card on slate-800 inputs, emerald-600
+primary, slate-700 borders, emerald accent links).
+
+Takeaway: when theming Clerk prebuilts, expect to need element
+classes. `variables` + `baseTheme` are a starting point, not a
+complete theming solution.

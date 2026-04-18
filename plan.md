@@ -202,8 +202,8 @@ Goal: clean foundation before any feature work.
 - [x] Mobile boots locally (`npx expo start`, renders on iPhone via Expo Go)
 - [x] API connects to local Postgres
 - [x] golang-migrate works (`make migrate-up`)
-- [ ] Lint/format baseline working across apps (Go `go vet` works; ESLint
-  configs for web + mobile deferred to Phase 1 before CI)
+- [x] Lint/format baseline working across apps (Go `go vet` works;
+  ESLint flat configs added for web and mobile in Phase 1 step 7)
 - [x] Root README accurate against real setup
 
 Output: all apps boot locally, API connects to DB, no real features
@@ -212,18 +212,35 @@ yet. No deep infra work.
 ### Phase 1 — Auth + user foundation
 Goal: real users in a real system.
 
-- [ ] Clerk integration (mobile, web, Go backend)
-- [ ] Signup / signin / signout flows on mobile
-- [ ] User record creation/sync in Postgres
-- [ ] Basic profile screen
-- [ ] Protected routes/screens
-- [ ] Session handling across clients
-- [ ] /users endpoints (backend)
-- [ ] Auth middleware (backend)
-- [ ] User table migration
-- [ ] Web catches up with mobile
-- [ ] CI/CD baseline added (GitHub Actions: go vet, Go tests, TS
-  typecheck, lint)
+- [x] Clerk integration (mobile, web, Go backend) — backend done;
+  mobile done (5a/5b/5c/5d); web done (6a/6b/6c — provider,
+  middleware, themed prebuilt sign-in/up, authenticated API client
+  + sync + profile)
+- [x] Signup / signin / signout flows on mobile (email/password and
+  Google OAuth via Clerk SSO)
+- [x] Signup / signin / signout flows on web (Clerk prebuilt
+  `<SignIn>`/`<SignUp>` themed to the slate + emerald palette;
+  Google OAuth included automatically)
+- [x] User record creation/sync in Postgres (backend
+  `POST /users/sync` upserts; mobile `(app)/_layout` and web
+  `(app)/layout` both fire it fire-and-forget on sign-in)
+- [x] Basic profile screen (mobile — `/profile` reads
+  `GET /users/me` with loading / error-retry / fields layout;
+  web — `/profile` matches the same feature set)
+- [x] Protected routes/screens (mobile — `(auth)` and `(app)` route
+  groups with auth-state-aware layouts; web — `clerkMiddleware` +
+  `auth.protect()` on `/home` and `/profile`)
+- [x] Session handling across clients (mobile — Secure Store token
+  cache + lazy `getToken` injection into API client; web — Clerk
+  cookie sessions via middleware/provider + `ApiAuthBridge` that
+  lazy-binds `useAuth().getToken` to the API client)
+- [x] /users endpoints (backend)
+- [x] Auth middleware (backend)
+- [x] User table migration
+- [x] Web catches up with mobile (6a/6b/6c done)
+- [x] CI/CD baseline added (GitHub Actions: `go vet`, `go test`,
+  `go mod tidy` drift check, TS typecheck and ESLint across all
+  workspaces — runs on every PR to main)
 
 ### Phase 2 — Circle creation + listing
 Goal: users can create circles and see them.

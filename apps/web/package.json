@@ -6,21 +6,26 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "15.2.1",
+    "@circle/types": "*",
+    "@clerk/nextjs": "^7.2.3",
+    "@clerk/themes": "^2.4.57",
+    "next": "15.2.9",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@circle/types": "*"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^5.7.2",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.15",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0"
+    "typescript": "^5.7.2"
   }
 }

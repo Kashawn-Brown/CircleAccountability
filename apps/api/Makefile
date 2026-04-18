@@ -1,7 +1,7 @@
 # Circle Accountability API — Makefile
 # Run `make help` to see available commands.
 
-.PHONY: help run build tidy migrate-up migrate-down test lint
+.PHONY: help run dev build tidy migrate-up migrate-down test lint
 
 # Extract DATABASE_URL from .env.local. Use `-f2-` (not `-f2`) so values
 # containing `=` (e.g. `?sslmode=disable`) don't get truncated at the first `=`.
@@ -10,8 +10,11 @@ DB_URL ?= $(shell grep ^DATABASE_URL ../../.env.local 2>/dev/null | cut -d '=' -
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-run: ## Run the API server (development)
+run: ## Run the API server once (no hot reload)
 	go run ./cmd/api/...
+
+dev: ## Run the API server with hot reload via Air (rebuilds on .go changes)
+	air
 
 build: ## Build the API binary
 	go build -o bin/api ./cmd/api/...

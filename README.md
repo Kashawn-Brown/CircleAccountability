@@ -123,6 +123,24 @@ npm run lint     # Lint all apps
 npm run format   # Format all files with Prettier
 ```
 
+### What CI runs on every PR
+
+GitHub Actions runs on every PR targeting `main` (see `.github/workflows/ci.yml`). Two parallel jobs:
+
+- **api** — `go vet ./...`, `go test ./...`, and a `go mod tidy` drift check, all inside `apps/api/`.
+- **node** — workspace-wide `npm run typecheck` and `npm run lint` across `apps/web` and `apps/mobile`.
+
+Reproduce locally before pushing:
+
+```bash
+# API
+cd apps/api && go vet ./... && go test ./...
+
+# Frontend (from repo root)
+npm run typecheck --workspaces --if-present
+npm run lint --workspaces --if-present
+```
+
 ---
 
 ## Tech Stack

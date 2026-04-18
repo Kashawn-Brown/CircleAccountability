@@ -43,14 +43,18 @@ App Router with route groups. Folders in parentheses (`(auth)`,
 ```
 src/
   middleware.ts                      Clerk middleware — protects /home and /profile.
+  components/
+    ApiAuthBridge.tsx                Binds useAuth().getToken to the api client. Side-effect only.
   app/
-    layout.tsx                       Root — wraps everything in <ClerkProvider>.
+    layout.tsx                       Root — wraps everything in <ClerkProvider> + mounts <ApiAuthBridge />.
     page.tsx                         "/" — server-side redirect based on auth().
     (auth)/
       sign-in/[[...rest]]/page.tsx   /sign-in — prebuilt <SignIn />.
       sign-up/[[...rest]]/page.tsx   /sign-up — prebuilt <SignUp />.
     (app)/
+      layout.tsx                     Fires POST /users/sync fire-and-forget on sign-in.
       home/page.tsx                  /home — landing after sign-in.
+      profile/page.tsx               /profile — reads GET /users/me.
 ```
 
 The `[[...rest]]` catch-all is what lets Clerk's prebuilt components
@@ -76,6 +80,24 @@ Protected routes (`/home`, `/profile`) are gated by
 Unauthenticated visits redirect to `/sign-in` (local route, not
 Clerk's hosted `accounts.dev` portal — that's what the
 `NEXT_PUBLIC_CLERK_SIGN_IN_URL` env var is for).
+
+## API client and `/users/sync`
+
+The singleton API client at `src/lib/api.ts` attaches
+`Authorization: Bearer <jwt>` to every request by calling a lazy
+getter. The getter is bound by `ApiAuthBridge` — a small client
+component mounted inside `<ClerkProvider>` that reads
+`useAuth().getToken` in an effect. Lazy because Clerk rotates
+session JWTs within the hour; caching a token would go stale.
+
+On first render of any protected route, `(app)/layout.tsx` fires
+`POST /users/sync` as a fire-and-forget effect (deduped by a
+`useRef` keyed on the Clerk user ID). That materializes the local
+Postgres row so `/profile` can read `GET /users/me` cleanly.
+
+This layout does **not** redirect signed-out users — the middleware
+already does that before the layout renders, so the check would be
+dead code.
 
 ## Scripts
 

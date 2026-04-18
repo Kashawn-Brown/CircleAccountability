@@ -9,24 +9,24 @@ Deep detail lives in plan.md.
 ## Current Status
 *Last updated: 2026-04-17*
 
-Web has caught up with mobile on Clerk surface area. Step 6a/6b done:
-`@clerk/nextjs` installed, root layout wrapped in `<ClerkProvider>`,
-`clerkMiddleware` protecting `/home` and `/profile`, `(auth)` and
-`(app)` route groups mirroring mobile's layout, and Clerk's prebuilt
-`<SignIn>`/`<SignUp>` themed to the slate + emerald palette via a
-shared `clerkAppearance` object. Sign-in (email/password and Google
-OAuth), sign-up with email verification, and sign-out all verified in
-Chrome end-to-end.
+Phase 1 feature work is complete on both platforms. Web now matches
+mobile end-to-end: sign in (email/password or Google OAuth) →
+`(app)/layout` fires `POST /users/sync` in the background → local
+Postgres row materialized → `/profile` reads `GET /users/me` and
+renders the mirrored user. Verified in Chrome today with the same
+test accounts used on mobile.
 
-Next: **step 6c — authenticated API client on web**. Scope:
-extend `apps/web/src/lib/api.ts` with `setTokenGetter` mirroring
-mobile, bind it from a client component under `<ClerkProvider>` via
-`useAuth().getToken`, add an `(app)/layout.tsx` that fires
-`POST /users/sync` fire-and-forget, and wire `/profile` to
-`GET /users/me`. After that, step 7 is the CI/CD baseline (GitHub
-Actions: go vet + Go tests + TS typecheck + lint on every PR to main).
-ESLint configs for web and mobile still pending — can fold in before
-CI so lint has something to run.
+Known cosmetic gap on web: the `/home` and `/profile` screens are
+narrow (phone-width) because they were built as mobile-style cards
+while Figma has no web auth/home designs. Left as-is — Figma wire-up
+for web screens comes when Phase 2's real home lands.
+
+Next: **step 7 — CI/CD baseline**. GitHub Actions workflow that
+runs on every PR to main: `go vet`, Go tests, TS typecheck across
+all workspaces, and lint. ESLint configs for web and mobile still
+need writing before lint can run — fold in before the workflow so
+lint has something to check. After that, Phase 1 closes and we
+start Phase 2 (circle creation + listing).
 
 Deferred still: Expo splash and icon theming (eas build prep),
 production Google Cloud OAuth credentials (deploy time), Apple
@@ -309,3 +309,39 @@ on the sign-in page without a manual refresh.
 Apps/web now has a proper `README.md` covering setup, routing, auth,
 env vars, and the Tailwind v4 `@source` footgun — was missing
 entirely until now.
+
+**Step 6c — authenticated API client + sync + profile on web.**
+First real web → API round-trip. Extended `src/lib/api.ts` with the
+same `setTokenGetter` pattern mobile uses — a lazy getter, not a
+cached token, because Clerk rotates session JWTs within the hour.
+Added a small client component `src/components/ApiAuthBridge.tsx`
+that calls `useAuth().getToken` inside an effect and hands the
+function to the API client. Mounted globally inside `<ClerkProvider>`
+so every client component downstream inherits an auth-aware client.
+
+The web inner-component dance is simpler than mobile's: on mobile,
+`ClerkProvider` is rendered by the same component that wants
+`useAuth()`, so we had to split into `RootLayout` + `RootContent`.
+On web, `ClerkProvider` is a Client Component rendered from a
+Server Component `layout.tsx` — the bridge can sit anywhere under
+the provider without the split.
+
+Added `app/(app)/layout.tsx` (client component) that fires
+`POST /users/sync` fire-and-forget on auth state flip, deduped by a
+`useRef` keyed on the Clerk user ID. Reset on error so the next
+render retries. No belt-and-braces `if (!isSignedIn) redirect` —
+the middleware in `src/middleware.ts` already bounces signed-out
+users before this layout renders, so the check would be dead code.
+
+Added `/profile` page as a Client Component that reads
+`GET /users/me` with spinner / error-with-retry / fields layout
+matching mobile's feature set. Styled as a narrow card to match
+the rest of the web surface for now.
+
+End-to-end verified in Chrome: sign in with email/password →
+Network tab shows `POST /users/sync` 200 followed by
+`GET /users/me` 200 → profile renders. Sign out, sign in with
+Google → same flow, row confirmed in Postgres. Web `/home` and
+`/profile` are narrow (phone-width) because there's no web Figma
+to size against — deferred to Phase 2 when the real home screen
+arrives.

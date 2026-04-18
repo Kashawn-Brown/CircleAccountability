@@ -1,5 +1,8 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
+
+import { ApiAuthBridge } from '@/components/ApiAuthBridge';
+
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -25,7 +28,10 @@ export default function RootLayout({
       signUpFallbackRedirectUrl="/home"
     >
       <html lang="en" className="dark">
-        <body className="bg-slate-950 text-slate-50 antialiased">{children}</body>
+        <body className="bg-slate-950 text-slate-50 antialiased">
+          <ApiAuthBridge />
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );

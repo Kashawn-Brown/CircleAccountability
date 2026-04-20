@@ -63,7 +63,6 @@ way around. Both iOS and Android are supported targets.
 - Figma export is in docs/3.zip — match it closely when building screens
 - Dark theme: slate-950 background, emerald-600 primary accent
 - ProgressRing SVG is the core UI component of the whole app
-- Both iOS and Android are supported targets
 
 ## Reference documents
 - docs/Circle Accountability.docx — full product planning document,
@@ -102,14 +101,18 @@ to main go through a PR. I handle branching and merging myself in
 GitHub Desktop.
 
 ## CI/CD
-Not set up yet — placeholder for Phase 1 completion. When added, it
-will be a GitHub Actions workflow that runs on every PR targeting main:
-- go vet and Go tests
-- TypeScript typecheck
-- Lint
+GitHub Actions workflow at `.github/workflows/ci.yml`. Runs on every PR
+targeting main and on pushes to main. Two parallel jobs:
 
-Keep this in mind when structuring code so nothing makes CI harder to
-add later.
+- **API (Go)** — `go mod tidy` drift check, `go vet ./...`, `go test ./...`
+  against Go 1.24, working directory `apps/api`.
+- **Frontend (typecheck + lint)** — `npm ci` at the root, then
+  `npm run typecheck --workspaces --if-present` and
+  `npm run lint --workspaces --if-present` across web and mobile.
+
+Keep the workspace `typecheck` and `lint` scripts in sync with this
+workflow — adding a new workspace means exposing those scripts or CI
+silently skips it.
 
 ## Commits
 One phase is not one commit. Commit at every logical checkpoint — each

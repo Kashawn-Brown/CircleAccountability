@@ -89,7 +89,7 @@ Photo proof is deferred past MVP — note-only check-ins first.
 - id, name, description (nullable), createdByUserId
 - goalCategory (fitness, study, general)
 - metricType (count, duration, amount)
-- cadence (daily, weekly)
+- cadence (daily (start date-end date, endless), weekly (Sun-Mon, Mon-Sun, Mon-Fri, etc.))
 - targetMode (per_member_equal, shared_total_split_evenly)
 - targetValue
 - status (active, paused, completed, archived)
@@ -179,7 +179,7 @@ health integrations, completion celebrations, alternate ring modes.
 - Create/edit circle
 - Invite/join flow
 - Roles: owner, leader, member
-- Visible per-member targets with override on join
+- Visible per-member targets with (possible, if allowed by creator) override on join
 - Cadence support (daily, weekly)
 - Metric support (count, duration, amount)
 - Note-based check-ins

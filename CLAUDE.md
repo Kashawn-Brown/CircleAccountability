@@ -63,7 +63,6 @@ way around. Both iOS and Android are supported targets.
 - Figma export is in docs/3.zip — match it closely when building screens
 - Dark theme: slate-950 background, emerald-600 primary accent
 - ProgressRing SVG is the core UI component of the whole app
-- Both iOS and Android are supported targets
 
 ## Reference documents
 - docs/Circle Accountability.docx — full product planning document,
@@ -71,67 +70,6 @@ way around. Both iOS and Android are supported targets.
   MVP scope, and all key decisions made before development began
 - docs/3.zip — Figma design export, contains all screen designs,
   components, and styles to match when building UI
-
-## Off limits
-The for_me/ folder contains personal notes and is not part of the
-codebase. Never read, edit, or reference anything in it.
-
-## My experience level
-- TypeScript/JavaScript: some experience
-- React Native/Expo: new to it, familiar with React concepts but
-  never built a native mobile app
-- Go: new to it — explain Go-specific concepts as they come up, never
-  assume familiarity with Go patterns, interfaces, goroutines, defer,
-  error handling style, structs, etc.
-
-## Learning approach — important, read this carefully
-I am building this to understand what I'm building, not just to have
-it built. At every step:
-- Before writing any code, explain what we are about to build, why it
-  exists, and how it fits into what we have already built
-- Explain Go-specific concepts the first time they appear — never assume
-  prior knowledge
-- Connect new concepts back to things we have already built when relevant
-- Do not generate large amounts of code without explanation
-- Some sessions will be more about understanding than building — that
-  is completely fine and expected, do not push to keep building if I
-  am still working through understanding something
-
-## Review breaks and notes/
-Between phases (and occasionally mid-phase) I will take a read-only
-review break to deepen my understanding of what was built before moving
-on. This is a known, recurring pattern — not an interruption.
-
-Rules when in review mode:
-- No edits to tracked files (code, docs, configs). The one carve-out
-  is the notes files described below.
-- Go at my pace. I will say "next" when I'm ready for the next section.
-- Explain via real file paths and line numbers so I can follow along
-  in the editor.
-- Draw Spring Boot / TypeScript analogies where they clarify Go — I
-  am new to Go but familiar at a low level with Java/Spring Boot and
-  TypeScript.
-- Collect any code suggestions that come up and surface them at the
-  end of the walkthrough, not mid-section.
-
-Notes location:
-- `notes/` at the repo root, gitignored (entry in `.gitignore`).
-- One file per topic or phase, e.g. `notes/phase-1-walkthrough.md`.
-- After each section, append a tight summary plus any follow-up
-  questions I asked and the answers. These are my personal learning
-  scaffold, not project history — they grow over time.
-
-The `notes/` folder and its `.gitignore` entry are a one-time setup
-and already established. Don't re-propose them. When normal work
-resumes after a review break, the setup change (if any) gets folded
-into a loose commit and is not worth narrating in `timeline.md`.
-
-## Definition of done
-A piece of work is not done until:
-1. The code is written and working
-2. I understand what it does and why
-3. Relevant .md files are updated
-4. A commit has been suggested with a proper message
 
 ## Scope discipline
 Build one thing at a time. Before starting anything, state clearly what
@@ -163,14 +101,18 @@ to main go through a PR. I handle branching and merging myself in
 GitHub Desktop.
 
 ## CI/CD
-Not set up yet — placeholder for Phase 1 completion. When added, it
-will be a GitHub Actions workflow that runs on every PR targeting main:
-- go vet and Go tests
-- TypeScript typecheck
-- Lint
+GitHub Actions workflow at `.github/workflows/ci.yml`. Runs on every PR
+targeting main and on pushes to main. Two parallel jobs:
 
-Keep this in mind when structuring code so nothing makes CI harder to
-add later.
+- **API (Go)** — `go mod tidy` drift check, `go vet ./...`, `go test ./...`
+  against Go 1.24, working directory `apps/api`.
+- **Frontend (typecheck + lint)** — `npm ci` at the root, then
+  `npm run typecheck --workspaces --if-present` and
+  `npm run lint --workspaces --if-present` across web and mobile.
+
+Keep the workspace `typecheck` and `lint` scripts in sync with this
+workflow — adding a new workspace means exposing those scripts or CI
+silently skips it.
 
 ## Commits
 One phase is not one commit. Commit at every logical checkpoint — each
@@ -219,11 +161,6 @@ Handle errors explicitly — no ignored errors. Wrap errors with context
 using fmt.Errorf("doing X: %w", err) so the origin is always clear.
 No panic() except for startup failures in main(). When we hit an error,
 explain what it means before fixing it.
-
-## When things break
-Explain what the error means and why it happened before fixing it. I
-want to understand the failure, not just have it disappear. If it is a
-Go-specific error pattern I may not recognize, explain that too.
 
 ## Testing
 Do not skip tests on these — they are critical to the product working:
@@ -274,31 +211,6 @@ values, and wait for confirmation before continuing. Keep .env.example
 fully up to date with every variable the project needs, using placeholder
 values and a comment explaining what each one is for.
 
-## Session checkpoints
-At every commit point, before continuing:
-1. Update any relevant .md files for what was just built
-2. Confirm I understood what was just built before moving to the next piece
-3. State clearly what the next piece is
-
-If a session has been running long, proactively suggest a session wrap
-before context gets stale — do not wait to be asked.
-
-## Starting every session
-Read CLAUDE.md and timeline.md before doing anything. Confirm what
-branch we are on. Then confirm what was last completed and what the
-logical next step is. Wait for me to confirm the plan before writing
-any code.
-
-## Wrapping a session
-When asked to wrap up, or when the session has been running long:
-1. Finalize any uncommitted work or note clearly what is in progress
-2. Update timeline.md including the Current Status section
-3. Update learnings.md, decisions.md, errors.md, challenges.md if
-   anything is outstanding
-4. Suggest a commit message for anything not yet committed
-5. Write a short handoff note — what was done this session, what is
-   next, anything to watch out for
-
 ---
 
 ## Documentation files — maintain these throughout the project
@@ -320,40 +232,10 @@ This is the complete reference for what we are building and why.
 timeline.md is the narrative of how it was built. These are different
 things — do not conflate them.
 
-### learnings.md
-Concepts, patterns, and explanations encountered as we build. Written
-in plain language connected to actual code in this repo — not generic
-documentation. Updated as we go. I may also ask to add specific things.
-
-Entry format:
-  ## Concept Name
-  *Where it lives in the codebase*
-
-  Plain explanation of what it is, why it exists here, and how it
-  connects to other parts of the project.
-
 ### decisions.md
 Architectural and technical choices with reasoning. Prevents
 relitigating things already decided. Add an entry whenever a meaningful
 choice is made about structure, tooling, approach, or product direction.
-
-### errors.md
-Notable errors and issues hit during development — not every minor
-typo, but anything meaningfully instructive.
-
-Entry format:
-  ## Error or issue title
-  *Phase encountered*
-
-  What the error was and what caused it.
-  How we diagnosed it.
-  How we fixed it.
-
-### challenges.md
-Bigger picture challenges — things that were conceptually difficult,
-took multiple attempts, or required a real shift in understanding. Not
-individual errors but meaningful obstacles and how they were overcome.
-The kind of thing worth speaking to when explaining the project.
 
 ### timeline.md
 A running readable summary of development. Updated at the end of each
@@ -378,3 +260,10 @@ Format:
   ## Phase 1 — Auth
   *Month Year*
   ...
+
+---
+
+Personal workflow notes — pacing, learning orientation, session
+behavior, and the entry formats for the local-only docs
+(`learnings.md`, `errors.md`, `challenges.md`) — live in
+`CLAUDE.local.md` (gitignored).
